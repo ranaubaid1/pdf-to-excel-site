@@ -1,0 +1,6 @@
+services:
+  - type: web
+    name: pdf-to-excel-converter
+    env: docker
+    plan: free
+    dockerfilePath: Dockerfile
