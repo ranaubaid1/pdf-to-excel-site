@@ -482,9 +482,11 @@ def _extract_tables_from_images(image_files):
 
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         h, w = gray.shape[:2]
-        if w < 1200:
-            scale = 1200 / float(w)
-            gray = cv2.resize(gray, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_LINEAR)
+        target_w = 1200
+        if w != target_w:
+            scale = target_w / float(w)
+            interp = cv2.INTER_AREA if w > target_w else cv2.INTER_LINEAR
+            gray = cv2.resize(gray, (target_w, int(h * scale)), interpolation=interp)
 
         gaussian = cv2.GaussianBlur(gray, (0, 0), 3)
         sharpened = cv2.addWeighted(gray, 1.5, gaussian, -0.5, 0)
