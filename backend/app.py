@@ -23,9 +23,12 @@ import cv2
 from PIL import Image
 
 try:
-    import fitz  # PyMuPDF for scanned PDF page rendering
+    import pymupdf as fitz  # PyMuPDF for scanned PDF page rendering
 except ImportError:
-    fitz = None
+    try:
+        import fitz
+    except ImportError:
+        fitz = None
 
 # Configure Tesseract binary path on Windows
 tess_path = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
@@ -449,7 +452,7 @@ def _extract_tables_from_scanned_pdf(file_stream):
 
     image_files = []
     for p_idx, page in enumerate(doc, start=1):
-        pix = page.get_pixmap(dpi=180)
+        pix = page.get_pixmap(dpi=300)
         img_bytes = pix.tobytes("png")
         image_files.append(NamedBytesIO(img_bytes, filename=f"page_{p_idx:03d}.png"))
 
@@ -463,9 +466,7 @@ def _extract_tables_from_images(image_files):
     """
     Extract tables and text from one or multiple uploaded image files using
     OpenCV unsharp-mask sharpening, OTSU thresholding, and Tesseract OCR.
-    Fast & lightweight multi-threading.
     """
-    cv2.setNumThreads(2)
     combined_lines = []
     first_ocr_text = ""
     last_ocr_text = ""
@@ -482,11 +483,9 @@ def _extract_tables_from_images(image_files):
 
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         h, w = gray.shape[:2]
-        target_w = 1200
-        if w != target_w:
-            scale = target_w / float(w)
-            interp = cv2.INTER_AREA if w > target_w else cv2.INTER_LINEAR
-            gray = cv2.resize(gray, (target_w, int(h * scale)), interpolation=interp)
+        if w < 1600:
+            scale = 1600 / float(w)
+            gray = cv2.resize(gray, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_CUBIC)
 
         gaussian = cv2.GaussianBlur(gray, (0, 0), 3)
         sharpened = cv2.addWeighted(gray, 1.5, gaussian, -0.5, 0)
@@ -819,8 +818,16 @@ def _build_styled_excel_file(dataframes):
 
 @app.route("/", methods=["GET"])
 def index():
-    frontend_path = os.path.join(os.path.dirname(__file__), "..", "frontend", "index.html")
-    return send_file(frontend_path)
+    candidates = [
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "frontend", "index.html")),
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "frontend", "index.html")),
+        os.path.abspath("frontend/index.html"),
+        os.path.abspath("../frontend/index.html"),
+    ]
+    for path in candidates:
+        if os.path.exists(path):
+            return send_file(path)
+    return jsonify({"error": "frontend/index.html not found. Please check folder structure."}), 404
 
 
 @app.route("/api/health", methods=["GET"])
