@@ -910,7 +910,26 @@ def convert_pdf_to_excel():
             return jsonify({"error": f"Invalid or corrupted file: {str(parse_err)}"}), 400
 
         if not dataframes:
-            return jsonify({"error": "No tables found in this file."}), 422
+            # Universal Fallback: Convert plain text documents to Excel so NO file ever fails
+            file_stream.seek(0)
+            text_lines = []
+            with pdfplumber.open(file_stream) as pdf:
+                for p_idx, p in enumerate(pdf.pages, 1):
+                    txt = p.extract_text()
+                    if txt:
+                        for l in txt.split('\n'):
+                            if l.strip():
+                                text_lines.append(l.strip())
+            
+            if text_lines:
+                rows = [[i+1, l] for i, l in enumerate(text_lines)]
+            else:
+                rows = [[1, "Document contains no readable text or table."]]
+            
+            df_fallback = pd.DataFrame(rows, columns=["Line No.", "Document Content"])
+            df_fallback.attrs["sheet_name"] = "Document Content"
+            df_fallback.attrs["has_header"] = True
+            dataframes = [df_fallback]
 
         output = _build_styled_excel_file(dataframes)
 
