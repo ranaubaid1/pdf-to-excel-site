@@ -3,157 +3,193 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>TabularX — PDF to Excel</title>
+<title>STATEXCEL — PDF & Word to Excel Bank Statement Converter</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg: #12161D;
-    --surface: #1B212B;
-    --surface-2: #232A36;
-    --line: #2E3644;
-    --text: #E9ECF1;
-    --text-dim: #8F98A8;
-    --accent: #F2B84B;
-    --accent-2: #5FD4A0;
-    --danger: #E8695E;
-    --radius: 10px;
+    --bg: #0B0F17;
+    --surface: #131A26;
+    --surface-2: #1C2638;
+    --surface-3: #26334D;
+    --line: #2D3C56;
+    --line-light: #3D4F6F;
+    --text: #F0F4F8;
+    --text-dim: #94A3B8;
+    --accent: #38BDF8;
+    --accent-hover: #0EA5E9;
+    --accent-grad: linear-gradient(135deg, #38BDF8 0%, #6366F1 100%);
+    --gold: #F59E0B;
+    --success: #10B981;
+    --success-bg: rgba(16, 185, 129, 0.12);
+    --danger: #EF4444;
+    --danger-bg: rgba(239, 68, 68, 0.12);
+    --warn: #F59E0B;
+    --warn-bg: rgba(245, 158, 11, 0.15);
+    --radius: 12px;
   }
-  *{box-sizing:border-box;}
+  *{box-sizing:border-box;margin:0;padding:0;}
   body{
-    margin:0;
     background:var(--bg);
     color:var(--text);
     font-family:'Inter',sans-serif;
     min-height:100vh;
+    display:flex;
+    flex-direction:column;
   }
   .grid-overlay{
     position:fixed; inset:0;
     background-image:
       linear-gradient(var(--line) 1px, transparent 1px),
       linear-gradient(90deg, var(--line) 1px, transparent 1px);
-    background-size: 64px 64px;
-    opacity:0.12;
+    background-size: 48px 48px;
+    opacity:0.08;
     pointer-events:none;
+    z-index: 0;
   }
   header{
     position:relative;
+    z-index: 10;
     display:flex; align-items:center; justify-content:space-between;
-    padding: 28px 48px;
+    padding: 20px 48px;
     border-bottom:1px solid var(--line);
+    background: rgba(11, 15, 23, 0.85);
+    backdrop-filter: blur(12px);
   }
   .brand{
     font-family:'Space Grotesk', sans-serif;
     font-weight:700;
-    font-size:20px;
-    letter-spacing:-0.01em;
-    display:flex; align-items:center; gap:10px;
+    font-size:22px;
+    letter-spacing:-0.02em;
+    display:flex; align-items:center; gap:12px;
   }
-  .brand .cell{
-    width:16px; height:16px;
-    background:var(--accent);
-    border-radius:3px;
+  .brand .logo-icon{
+    width:28px; height:28px;
+    background:var(--accent-grad);
+    border-radius:6px;
+    display:flex; align-items:center; justify-content:center;
+    color:#fff; font-size:14px; font-weight:800;
   }
-  .tag{
+  .badge-saas{
     font-family:'JetBrains Mono', monospace;
     font-size:11px;
-    color:var(--text-dim);
-    border:1px solid var(--line);
+    color:var(--accent);
+    background: rgba(56, 189, 248, 0.1);
+    border:1px solid rgba(56, 189, 248, 0.3);
     padding:4px 10px;
     border-radius:999px;
   }
   main{
-    max-width:920px;
+    max-width:1160px;
+    width:100%;
     margin:0 auto;
-    padding: 64px 24px 96px;
+    padding: 48px 24px 80px;
     position:relative;
+    z-index: 10;
+    flex:1;
   }
-  .eyebrow{
+  .hero{
+    text-align:center;
+    margin-bottom:40px;
+  }
+  .hero .eyebrow{
     font-family:'JetBrains Mono', monospace;
     font-size:12px;
-    color:var(--accent-2);
-    letter-spacing:0.08em;
+    color:var(--accent);
+    letter-spacing:0.1em;
     text-transform:uppercase;
-    margin-bottom:16px;
+    margin-bottom:12px;
+    display:inline-block;
   }
-  h1{
+  .hero h1{
     font-family:'Space Grotesk', sans-serif;
-    font-size: clamp(32px, 5vw, 52px);
-    line-height:1.05;
-    letter-spacing:-0.02em;
-    margin:0 0 18px;
+    font-size: clamp(32px, 4.5vw, 48px);
+    line-height:1.15;
+    letter-spacing:-0.03em;
+    margin-bottom:14px;
   }
-  h1 span{ color:var(--accent); }
-  .sub{
+  .hero h1 span{
+    background: var(--accent-grad);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .hero .sub{
     color:var(--text-dim);
     font-size:16px;
+    max-width:640px;
+    margin:0 auto;
     line-height:1.6;
-    max-width:560px;
-    margin-bottom:48px;
   }
 
+  /* UPLOAD PANEL */
   .panel{
     background:var(--surface);
     border:1px solid var(--line);
     border-radius: var(--radius);
     overflow:hidden;
+    box-shadow: 0 20px 40px -15px rgba(0,0,0,0.5);
   }
   .panel-head{
-    display:flex; align-items:center; gap:8px;
-    padding:12px 16px;
+    display:flex; align-items:center; justify-content:space-between;
+    padding:14px 20px;
     border-bottom:1px solid var(--line);
     background:var(--surface-2);
     font-family:'JetBrains Mono', monospace;
     font-size:12px;
     color:var(--text-dim);
   }
-  .dot{ width:8px; height:8px; border-radius:50%; background:var(--line); }
-  .panel-head .cols{ margin-left:auto; display:flex; gap:2px; }
-  .panel-head .cols span{
-    width:18px; height:14px; border:1px solid var(--line); border-radius:2px;
-  }
+  .panel-head .dots{ display:flex; gap:6px; }
+  .panel-head .dot{ width:10px; height:10px; border-radius:50%; }
+  .dot.red{ background:#EF4444; }
+  .dot.yellow{ background:#F59E0B; }
+  .dot.green{ background:#10B981; }
 
   #dropzone{
-    padding: 56px 32px;
+    padding: 64px 32px;
     text-align:center;
     cursor:pointer;
-    transition: background 0.2s ease, border-color 0.2s ease;
-    border: 2px dashed transparent;
-    margin: 16px;
+    transition: all 0.2s ease;
+    border: 2px dashed var(--line);
+    margin: 20px;
     border-radius:8px;
+    background: rgba(28, 38, 56, 0.4);
   }
   #dropzone.drag{
     border-color: var(--accent);
-    background: rgba(242,184,75,0.06);
+    background: rgba(56, 189, 248, 0.08);
   }
-  #dropzone .icon{
-    font-family:'JetBrains Mono', monospace;
-    font-size:13px;
-    color: var(--accent);
-    margin-bottom:14px;
-    display:inline-block;
-    padding: 6px 14px;
-    border:1px solid var(--line);
-    border-radius:6px;
+  #dropzone .icon-box{
+    font-size:32px;
+    margin-bottom:16px;
   }
   #dropzone h3{
     font-family:'Space Grotesk', sans-serif;
-    font-size:18px;
-    margin: 0 0 6px;
+    font-size:20px;
+    margin-bottom:6px;
   }
   #dropzone p{
     color:var(--text-dim);
     font-size:13px;
-    margin:0;
+  }
+  .formats-tag{
+    display:inline-block;
+    margin-top:14px;
+    font-family:'JetBrains Mono', monospace;
+    font-size:11px;
+    color:var(--accent);
+    background: rgba(56, 189, 248, 0.08);
+    border: 1px solid rgba(56, 189, 248, 0.2);
+    padding: 4px 12px;
+    border-radius:6px;
   }
   input[type=file]{ display:none; }
 
   .filebar{
     display:none;
     align-items:center;
-    gap:12px;
-    margin: 0 16px 16px;
-    padding: 14px 16px;
+    gap:14px;
+    margin: 0 20px 20px;
+    padding: 14px 18px;
     background: var(--surface-2);
     border:1px solid var(--line);
     border-radius:8px;
@@ -161,87 +197,270 @@
     font-size:13px;
   }
   .filebar.show{ display:flex; }
-  .filebar .name{ flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .filebar .size{ color:var(--text-dim); }
-  .filebar button{
+  .filebar .name{ flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:600; color:#fff; }
+  .filebar .size{ color:var(--text-dim); font-size:12px; }
+  .filebar button.clear{
     background:none; border:none; color:var(--text-dim);
-    cursor:pointer; font-size:16px;
+    cursor:pointer; font-size:18px; line-height:1;
   }
+  .filebar button.clear:hover{ color:var(--danger); }
 
   .actions{
-    display:flex; justify-content:flex-end;
-    padding: 0 16px 16px;
+    display:flex;
+    justify-content:flex-end;
+    gap:12px;
+    padding: 0 20px 20px;
   }
   .btn{
     font-family:'Space Grotesk', sans-serif;
     font-weight:600;
     font-size:14px;
-    background: var(--accent);
-    color: #1B140A;
     border:none;
-    padding: 12px 24px;
+    padding: 12px 22px;
     border-radius:8px;
     cursor:pointer;
-    transition: transform 0.12s ease, opacity 0.12s ease;
+    display:inline-flex; align-items:center; gap:8px;
+    transition: all 0.15s ease;
   }
-  .btn:hover:not(:disabled){ transform: translateY(-1px); }
-  .btn:disabled{ opacity:0.4; cursor:not-allowed; }
+  .btn-primary{
+    background: var(--accent-grad);
+    color: #fff;
+    box-shadow: 0 4px 14px rgba(56, 189, 248, 0.25);
+  }
+  .btn-primary:hover:not(:disabled){ transform: translateY(-1px); opacity:0.95; }
+  .btn-secondary{
+    background: var(--surface-2);
+    color: var(--text);
+    border:1px solid var(--line);
+  }
+  .btn-secondary:hover:not(:disabled){ background: var(--surface-3); border-color:var(--line-light); }
+  .btn-success{
+    background: var(--success);
+    color:#fff;
+  }
+  .btn:disabled{ opacity:0.35; cursor:not-allowed; transform:none !important; }
 
+  /* PIPELINE PROGRESS BAR */
+  .pipeline{
+    display:none;
+    margin: 20px;
+    padding: 20px;
+    background: var(--surface-2);
+    border:1px solid var(--line);
+    border-radius:8px;
+  }
+  .pipeline.show{ display:block; }
+  .pipeline-steps{
+    display:grid; grid-template-columns: repeat(4, 1fr);
+    gap:12px; margin-top:12px;
+  }
+  .pipe-step{
+    padding:10px; border-radius:6px;
+    background: rgba(0,0,0,0.2);
+    border:1px solid var(--line);
+    font-family:'JetBrains Mono', monospace;
+    font-size:11px; color:var(--text-dim);
+    text-align:center;
+    transition: all 0.2s ease;
+  }
+  .pipe-step.active{
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(56, 189, 248, 0.1);
+    font-weight:600;
+  }
+  .pipe-step.done{
+    border-color: var(--success);
+    color: var(--success);
+    background: var(--success-bg);
+  }
+
+  /* SPREADSHEET EDITOR VIEW */
+  .editor-section{
+    display:none;
+    margin-top:32px;
+  }
+  .editor-section.show{ display:block; }
+  
+  /* METADATA CARDS */
+  .meta-dashboard{
+    display:grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap:12px;
+    margin-bottom:20px;
+  }
+  .meta-card{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:14px 16px;
+  }
+  .meta-card .label{
+    font-family:'JetBrains Mono', monospace;
+    font-size:11px;
+    color:var(--text-dim);
+    text-transform:uppercase;
+    margin-bottom:4px;
+  }
+  .meta-card .value{
+    font-family:'Space Grotesk', sans-serif;
+    font-size:16px;
+    font-weight:700;
+    color:#fff;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  }
+  .meta-card .value.green{ color:var(--success); }
+  .meta-card .value.warn{ color:var(--warn); }
+
+  /* TOOLBAR */
+  .editor-toolbar{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    flex-wrap:wrap;
+    gap:12px;
+    padding:14px 18px;
+    background:var(--surface-2);
+    border:1px solid var(--line);
+    border-bottom:none;
+    border-top-left-radius:var(--radius);
+    border-top-right-radius:var(--radius);
+  }
+  .editor-toolbar .tools-left{ display:flex; gap:10px; align-items:center; }
+  .editor-toolbar .tools-right{ display:flex; gap:10px; align-items:center; }
+
+  /* DATA GRID */
+  .grid-container{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-bottom-left-radius:var(--radius);
+    border-bottom-right-radius:var(--radius);
+    overflow:auto;
+    max-height: 520px;
+  }
+  table.sheet-table{
+    width:100%;
+    border-collapse:collapse;
+    font-family:'Inter', sans-serif;
+    font-size:13px;
+  }
+  table.sheet-table th{
+    position:sticky; top:0;
+    background: #192333;
+    color: #fff;
+    font-family:'Space Grotesk', sans-serif;
+    font-weight:600;
+    padding:12px 14px;
+    text-align:left;
+    border-bottom:2px solid var(--line-light);
+    border-right:1px solid var(--line);
+    white-space:nowrap;
+    z-index: 5;
+  }
+  table.sheet-table td{
+    padding:10px 14px;
+    border-bottom:1px solid var(--line);
+    border-right:1px solid var(--line);
+    color:var(--text);
+  }
+  table.sheet-table tr:hover td{ background: rgba(255,255,255,0.02); }
+  table.sheet-table tr.flagged td{ background: var(--warn-bg); }
+  table.sheet-table td.cell-num{
+    text-align:right;
+    font-family:'JetBrains Mono', monospace;
+    font-weight:500;
+  }
+  table.sheet-table td.cell-center{ text-align:center; }
+  table.sheet-table td[contenteditable="true"]{
+    outline:none;
+    cursor:text;
+    transition: background 0.15s ease;
+  }
+  table.sheet-table td[contenteditable="true"]:focus{
+    background: rgba(56, 189, 248, 0.15);
+    box-shadow: inset 0 0 0 2px var(--accent);
+  }
+  .badge-stat{
+    display:inline-block;
+    padding:2px 8px;
+    border-radius:4px;
+    font-size:11px;
+    font-family:'JetBrains Mono', monospace;
+    font-weight:600;
+  }
+  .badge-stat.pass{ background:var(--success-bg); color:var(--success); border:1px solid rgba(16,185,129,0.3); }
+  .badge-stat.warn{ background:var(--warn-bg); color:var(--warn); border:1px solid rgba(245,158,11,0.3); }
+  .btn-del-row{
+    background:none; border:none; color:var(--text-dim); cursor:pointer; font-size:14px;
+  }
+  .btn-del-row:hover{ color:var(--danger); }
+
+  /* STATUS MESSAGE */
   .status{
-    margin: 20px 16px 0;
+    margin: 20px 20px 0;
     font-family:'JetBrains Mono', monospace;
     font-size:13px;
-    padding: 12px 14px;
+    padding: 12px 16px;
     border-radius:8px;
     display:none;
   }
   .status.show{ display:block; }
-  .status.info{ background: rgba(255,255,255,0.04); color:var(--text-dim); border:1px solid var(--line); }
-  .status.error{ background: rgba(232,105,94,0.08); color:var(--danger); border:1px solid rgba(232,105,94,0.3); }
-  .status.success{ background: rgba(95,212,160,0.08); color:var(--accent-2); border:1px solid rgba(95,212,160,0.3); }
+  .status.info{ background: rgba(56,189,248,0.08); color:var(--accent); border:1px solid rgba(56,189,248,0.3); }
+  .status.error{ background: var(--danger-bg); color:var(--danger); border:1px solid rgba(239,68,68,0.3); }
+  .status.success{ background: var(--success-bg); color:var(--success); border:1px solid rgba(16,185,129,0.3); }
 
-  .steps{
-    display:grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap:16px;
-    margin-top:56px;
+  /* PASSWORD MODAL */
+  .modal-backdrop{
+    display:none;
+    position:fixed; inset:0;
+    background: rgba(0,0,0,0.75);
+    backdrop-filter: blur(8px);
+    z-index: 100;
+    align-items:center; justify-content:center;
   }
-  .step{
+  .modal-backdrop.show{ display:flex; }
+  .modal{
+    background:var(--surface);
     border:1px solid var(--line);
-    border-radius: var(--radius);
-    padding: 20px;
-    background: var(--surface);
+    border-radius:var(--radius);
+    padding:32px;
+    max-width:440px;
+    width:90%;
+    box-shadow: 0 25px 50px -12px rgba(0,0,0,0.7);
   }
-  .step .idx{
-    font-family:'JetBrains Mono', monospace;
-    font-size:12px;
-    color:var(--accent);
-    margin-bottom:10px;
+  .modal h3{ font-family:'Space Grotesk', sans-serif; font-size:20px; margin-bottom:8px; }
+  .modal p{ font-size:13px; color:var(--text-dim); margin-bottom:20px; line-height:1.5; }
+  .modal input{
+    width:100%;
+    padding:12px 14px;
+    background:var(--surface-2);
+    border:1px solid var(--line);
+    border-radius:8px;
+    color:#fff;
+    font-family:'Inter', sans-serif;
+    font-size:14px;
+    margin-bottom:20px;
   }
-  .step h4{
-    font-family:'Space Grotesk', sans-serif;
-    margin:0 0 6px;
-    font-size:15px;
-  }
-  .step p{
-    color:var(--text-dim);
-    font-size:13px;
-    line-height:1.5;
-    margin:0;
-  }
+  .modal input:focus{ outline:none; border-color:var(--accent); }
+  .modal .modal-actions{ display:flex; justify-content:flex-end; gap:10px; }
 
+  /* FOOTER */
   footer{
     text-align:center;
     color:var(--text-dim);
     font-size:12px;
-    font-family:'JetBrains Mono', monospace;
-    padding: 32px;
+    font-family:'Inter', sans-serif;
+    padding: 32px 24px;
     border-top:1px solid var(--line);
+    background: var(--bg);
+    line-height:1.8;
   }
+  footer .sec-note{ color:var(--accent); font-family:'JetBrains Mono', monospace; font-size:11px; }
 
-  @media (max-width: 640px){
-    header{ padding:20px; }
-    .steps{ grid-template-columns:1fr; }
+  @media(max-width:768px){
+    header{ padding:16px 20px; }
+    .pipeline-steps{ grid-template-columns:1fr 1fr; }
+    .editor-toolbar{ flex-direction:column; align-items:stretch; }
   }
 </style>
 </head>
@@ -249,66 +468,142 @@
 <div class="grid-overlay"></div>
 
 <header>
-  <div class="brand"><span class="cell"></span>TabularX</div>
-  <div class="tag">PDF / IMAGE &rarr; XLSX</div>
+  <div class="brand">
+    <div class="logo-icon">S</div>
+    STATEXCEL
+  </div>
+  <div class="badge-saas">PDF / DOCX ➔ EXCEL</div>
 </header>
 
 <main>
-  <div class="eyebrow">// table extraction utility</div>
-  <h1>Turn PDF & Image tables into<br><span>clean spreadsheets.</span></h1>
-  <p class="sub">Upload a PDF or Image (PNG, JPG, WEBP), TabularX extracts every table and hands back a ready-to-use Excel workbook.</p>
+  <div class="hero">
+    <div class="eyebrow">// BANK STATEMENT RECONCILIATION & CONVERTER</div>
+    <h1>Convert Bank Statements into<br><span>Clean, Verified Spreadsheets.</span></h1>
+    <p class="sub">Upload PDF (native or scanned), Word (.docx), or Images. Preview, edit cells in-browser, reconcile running totals, and download formatted Excel or CSV.</p>
+  </div>
 
-  <div class="panel">
+  <!-- UPLOAD PANEL -->
+  <div class="panel" id="uploadPanel">
     <div class="panel-head">
-      <span class="dot"></span>
-      <span>convert.xlsx</span>
-      <div class="cols"><span></span><span></span><span></span></div>
+      <div class="dots">
+        <span class="dot red"></span>
+        <span class="dot yellow"></span>
+        <span class="dot green"></span>
+      </div>
+      <span>STATEXCEL Engine v2.0</span>
+      <span>In-Memory Encrypted</span>
     </div>
 
     <div id="dropzone">
-      <div class="icon">.pdf / .png / .jpg</div>
-      <h3>Drop your PDF or Image(s) here</h3>
-      <p>or click to browse — upload single or multiple page images — max 20MB</p>
-      <input type="file" id="fileInput" accept="application/pdf, image/png, image/jpeg, image/jpg, image/webp, image/bmp" multiple />
+      <div class="icon-box">📄</div>
+      <h3>Drop your Bank Statement here</h3>
+      <p>or click to browse — supports single or multiple files up to 25MB</p>
+      <div class="formats-tag">.PDF (Text & Scanned) &bull; .DOCX &bull; .PNG &bull; .JPG</div>
+      <input type="file" id="fileInput" accept=".pdf,.docx,.doc,.png,.jpg,.jpeg,.webp,.bmp" multiple />
     </div>
 
     <div class="filebar" id="filebar">
       <span class="name" id="fileName"></span>
       <span class="size" id="fileSize"></span>
-      <button id="clearFile" title="Remove file">&times;</button>
+      <button class="clear" id="clearFile" title="Remove file">&times;</button>
+    </div>
+
+    <!-- PIPELINE PROGRESS -->
+    <div class="pipeline" id="pipeline">
+      <div style="font-family:'Space Grotesk', sans-serif; font-size:14px; font-weight:600; color:#fff;" id="pipeStatus">Processing document…</div>
+      <div class="pipeline-steps">
+        <div class="pipe-step active" id="step1">1. Reading File</div>
+        <div class="pipe-step" id="step2">2. Detecting Layout</div>
+        <div class="pipe-step" id="step3">3. Extracting Rows</div>
+        <div class="pipe-step" id="step4">4. Reconciling Math</div>
+      </div>
     </div>
 
     <div class="status" id="status"></div>
 
-    <div class="actions">
-      <button class="btn" id="convertBtn" disabled>Convert to Excel</button>
+    <div class="actions" id="actionButtons">
+      <button class="btn btn-secondary" id="quickConvertBtn" disabled>⚡ Quick Download (.xlsx)</button>
+      <button class="btn btn-primary" id="previewBtn" disabled>🚀 Convert &amp; Edit in Browser</button>
     </div>
   </div>
 
-  <div class="steps">
-    <div class="step">
-      <div class="idx">01</div>
-      <h4>Upload</h4>
-      <p>Drop in single/multiple PDFs or Images containing statement tables.</p>
+  <!-- SPREADSHEET EDITOR VIEW -->
+  <div class="editor-section" id="editorSection">
+    <!-- METADATA DASHBOARD -->
+    <div class="meta-dashboard" id="metaDashboard">
+      <div class="meta-card">
+        <div class="label">Bank Name</div>
+        <div class="value" id="cardBank">Bank</div>
+      </div>
+      <div class="meta-card">
+        <div class="label">Account Title</div>
+        <div class="value" id="cardTitle">—</div>
+      </div>
+      <div class="meta-card">
+        <div class="label">Account Number</div>
+        <div class="value" id="cardAcc">—</div>
+      </div>
+      <div class="meta-card">
+        <div class="label">Total Transactions</div>
+        <div class="value" id="cardTotalRows">0</div>
+      </div>
+      <div class="meta-card">
+        <div class="label">Total Credits</div>
+        <div class="value green" id="cardTotalCredit">0.00</div>
+      </div>
+      <div class="meta-card">
+        <div class="label">Total Debits</div>
+        <div class="value" id="cardTotalDebit">0.00</div>
+      </div>
+      <div class="meta-card">
+        <div class="label">Reconciliation</div>
+        <div class="value green" id="cardRecStatus">✅ Verified</div>
+      </div>
     </div>
-    <div class="step">
-      <div class="idx">02</div>
-      <h4>Extract</h4>
-      <p>The server scans PDF text or uses Tesseract OCR to extract table structure.</p>
+
+    <!-- EDITOR TOOLBAR -->
+    <div class="editor-toolbar">
+      <div class="tools-left">
+        <button class="btn btn-secondary" id="swapColsBtn" title="Swap Debit and Credit columns">🔄 Swap Debit ⮂ Credit</button>
+        <button class="btn btn-secondary" id="addRowBtn">➕ Add Row</button>
+        <button class="btn btn-secondary" id="resetEditorBtn">↩ Upload New</button>
+      </div>
+      <div class="tools-right">
+        <button class="btn btn-secondary" id="exportCsvBtn">📄 Export CSV</button>
+        <button class="btn btn-primary" id="exportXlsxBtn">📊 Export Excel (.xlsx)</button>
+      </div>
     </div>
-    <div class="step">
-      <div class="idx">03</div>
-      <h4>Download</h4>
-      <p>Get back a beautifully styled .xlsx file with formulas and auto column widths.</p>
+
+    <!-- DATA GRID -->
+    <div class="grid-container">
+      <table class="sheet-table" id="sheetTable">
+        <thead id="tableHead"></thead>
+        <tbody id="tableBody"></tbody>
+      </table>
     </div>
   </div>
 </main>
 
-<footer>TabularX — runs locally, nothing is stored after conversion</footer>
+<!-- PASSWORD MODAL -->
+<div class="modal-backdrop" id="pwdModal">
+  <div class="modal">
+    <h3>🔒 Password-Protected PDF</h3>
+    <p>This PDF document is encrypted. Please enter the password to decrypt and convert transactions.</p>
+    <input type="password" id="pdfPassword" placeholder="Enter PDF password…" />
+    <div class="modal-actions">
+      <button class="btn btn-secondary" id="cancelPwdBtn">Cancel</button>
+      <button class="btn btn-primary" id="submitPwdBtn">Unlock &amp; Convert</button>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <p class="sec-note">🔒 BANK-GRADE SECURITY: Files are processed in-memory and auto-deleted immediately. We never store your financial statements.</p>
+  <p>STATEXCEL is a document formatting utility and does not provide financial or tax advice &bull; Made for accountants, businesses, &amp; developers.</p>
+</footer>
 
 <script>
-  // Uses current domain dynamically (works both locally and live on cloud)
-  const API_BASE = window.location.origin;
+  const API_BASE = "http://localhost:5000";
 
   const dropzone = document.getElementById('dropzone');
   const fileInput = document.getElementById('fileInput');
@@ -316,10 +611,41 @@
   const fileName = document.getElementById('fileName');
   const fileSize = document.getElementById('fileSize');
   const clearFile = document.getElementById('clearFile');
-  const convertBtn = document.getElementById('convertBtn');
+  const previewBtn = document.getElementById('previewBtn');
+  const quickConvertBtn = document.getElementById('quickConvertBtn');
   const statusEl = document.getElementById('status');
+  const pipeline = document.getElementById('pipeline');
+  const pipeStatus = document.getElementById('pipeStatus');
+  const uploadPanel = document.getElementById('uploadPanel');
+  const editorSection = document.getElementById('editorSection');
+
+  // Modal
+  const pwdModal = document.getElementById('pwdModal');
+  const pdfPassword = document.getElementById('pdfPassword');
+  const cancelPwdBtn = document.getElementById('cancelPwdBtn');
+  const submitPwdBtn = document.getElementById('submitPwdBtn');
+
+  // Editor Elements
+  const sheetTable = document.getElementById('sheetTable');
+  const tableHead = document.getElementById('tableHead');
+  const tableBody = document.getElementById('tableBody');
+  const swapColsBtn = document.getElementById('swapColsBtn');
+  const addRowBtn = document.getElementById('addRowBtn');
+  const resetEditorBtn = document.getElementById('resetEditorBtn');
+  const exportXlsxBtn = document.getElementById('exportXlsxBtn');
+  const exportCsvBtn = document.getElementById('exportCsvBtn');
+
+  // Metadata Card Elements
+  const cardBank = document.getElementById('cardBank');
+  const cardTitle = document.getElementById('cardTitle');
+  const cardAcc = document.getElementById('cardAcc');
+  const cardTotalRows = document.getElementById('cardTotalRows');
+  const cardTotalCredit = document.getElementById('cardTotalCredit');
+  const cardTotalDebit = document.getElementById('cardTotalDebit');
+  const cardRecStatus = document.getElementById('cardRecStatus');
 
   let selectedFiles = [];
+  let currentPayload = null; // Store JSON returned from /api/preview
 
   function formatSize(bytes){
     if (bytes < 1024) return bytes + " B";
@@ -329,7 +655,7 @@
 
   function setFiles(files){
     if (!files || files.length === 0) return;
-    const allowedExts = [".pdf", ".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tiff"];
+    const allowedExts = [".pdf", ".docx", ".doc", ".png", ".jpg", ".jpeg", ".webp", ".bmp"];
     
     const validFiles = Array.from(files).filter(file => 
       allowedExts.some(ext => file.name.toLowerCase().endsWith(ext))
@@ -337,7 +663,7 @@
 
     if (validFiles.length === 0){
       clearSelectedFiles();
-      showStatus("error", "Only .pdf and image files (.png, .jpg, .jpeg, .webp, .bmp) are supported.");
+      showStatus("error", "Supported formats: .pdf, .docx, .png, .jpg, .jpeg, .webp, .bmp");
       return;
     }
 
@@ -352,7 +678,8 @@
     fileSize.textContent = formatSize(totalBytes);
 
     filebar.classList.add('show');
-    convertBtn.disabled = false;
+    previewBtn.disabled = false;
+    quickConvertBtn.disabled = false;
     hideStatus();
   }
 
@@ -360,7 +687,8 @@
     selectedFiles = [];
     fileInput.value = "";
     filebar.classList.remove('show');
-    convertBtn.disabled = true;
+    previewBtn.disabled = true;
+    quickConvertBtn.disabled = true;
     hideStatus();
   }
 
@@ -371,6 +699,21 @@
   function hideStatus(){
     statusEl.className = "status";
     statusEl.textContent = "";
+  }
+
+  function setPipelineStep(stepIdx, msg){
+    pipeline.classList.add('show');
+    pipeStatus.textContent = msg;
+    for(let i=1; i<=4; i++){
+      const el = document.getElementById(`step${i}`);
+      el.className = "pipe-step";
+      if (i < stepIdx) el.classList.add('done');
+      else if (i === stepIdx) el.classList.add('active');
+    }
+  }
+
+  function hidePipeline(){
+    pipeline.classList.remove('show');
   }
 
   dropzone.addEventListener('click', () => fileInput.click());
@@ -398,20 +741,95 @@
     clearSelectedFiles();
   });
 
-  convertBtn.addEventListener('click', async () => {
+  // QUICK 1-CLICK CONVERT
+  quickConvertBtn.addEventListener('click', () => doConvert(null));
+
+  // PREVIEW & EDIT IN BROWSER
+  previewBtn.addEventListener('click', () => doPreview(null));
+
+  async function doPreview(password){
     if (!selectedFiles || selectedFiles.length === 0) return;
-    convertBtn.disabled = true;
-    convertBtn.textContent = "Converting…";
-    showStatus("info", `Uploading and processing ${selectedFiles.length} file(s)…`);
+    previewBtn.disabled = true;
+    quickConvertBtn.disabled = true;
+    hideStatus();
+
+    setPipelineStep(1, "Reading uploaded document…");
 
     const formData = new FormData();
     selectedFiles.forEach(f => formData.append("file", f));
+    if (password) formData.append("password", password);
+
+    setTimeout(() => setPipelineStep(2, "Detecting table layout & coordinates…"), 400);
+    setTimeout(() => setPipelineStep(3, "Extracting transaction entries…"), 800);
+
+    try {
+      const res = await fetch(`${API_BASE}/api/preview`, {
+        method: "POST",
+        body: formData
+      });
+
+      if (res.status === 401){
+        const errJson = await res.json();
+        if (errJson.password_required){
+          hidePipeline();
+          pwdModal.classList.add('show');
+          pdfPassword.value = "";
+          pdfPassword.focus();
+          previewBtn.disabled = false;
+          quickConvertBtn.disabled = false;
+          return;
+        }
+      }
+
+      if (!res.ok){
+        const err = await res.json().catch(() => ({error: "Conversion failed."}));
+        throw new Error(err.error || "Conversion failed.");
+      }
+
+      setPipelineStep(4, "Validating running balance reconciliation…");
+      const data = await res.json();
+      currentPayload = data;
+
+      setTimeout(() => {
+        hidePipeline();
+        renderSpreadsheetEditor(data);
+      }, 400);
+
+    } catch (err) {
+      hidePipeline();
+      showStatus("error", err.message || "Failed to parse document.");
+      previewBtn.disabled = false;
+      quickConvertBtn.disabled = false;
+    }
+  }
+
+  async function doConvert(password){
+    if (!selectedFiles || selectedFiles.length === 0) return;
+    previewBtn.disabled = true;
+    quickConvertBtn.disabled = true;
+    showStatus("info", "Processing conversion and downloading Excel…");
+
+    const formData = new FormData();
+    selectedFiles.forEach(f => formData.append("file", f));
+    if (password) formData.append("password", password);
 
     try {
       const res = await fetch(`${API_BASE}/api/convert`, {
         method: "POST",
         body: formData
       });
+
+      if (res.status === 401){
+        const errJson = await res.json();
+        if (errJson.password_required){
+          pwdModal.classList.add('show');
+          pdfPassword.value = "";
+          pdfPassword.focus();
+          previewBtn.disabled = false;
+          quickConvertBtn.disabled = false;
+          return;
+        }
+      }
 
       if (!res.ok){
         const err = await res.json().catch(() => ({error: "Conversion failed."}));
@@ -422,22 +840,232 @@
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      
       const firstFileName = selectedFiles[0].name;
-      a.download = firstFileName.replace(/\.(pdf|png|jpg|jpeg|webp|bmp|tiff)$/i, "") + "_converted.xlsx";
+      a.download = firstFileName.replace(/\.(pdf|docx|doc|png|jpg|jpeg|webp|bmp)$/i, "") + "_converted.xlsx";
       document.body.appendChild(a);
       a.click();
       a.remove();
       window.URL.revokeObjectURL(url);
 
-      showStatus("success", "Done — your Excel file has downloaded.");
+      showStatus("success", "Done — your verified Excel workbook has downloaded!");
     } catch (err) {
-      showStatus("error", err.message || "Something went wrong.");
+      showStatus("error", err.message || "Conversion failed.");
     } finally {
-      convertBtn.disabled = false;
-      convertBtn.textContent = "Convert to Excel";
+      previewBtn.disabled = false;
+      quickConvertBtn.disabled = false;
+    }
+  }
+
+  // PASSWORD MODAL HANDLERS
+  cancelPwdBtn.addEventListener('click', () => {
+    pwdModal.classList.remove('show');
+  });
+  submitPwdBtn.addEventListener('click', () => {
+    const pwd = pdfPassword.value.trim();
+    if (!pwd) return;
+    pwdModal.classList.remove('show');
+    doPreview(pwd);
+  });
+
+  // SPREADSHEET EDITOR RENDERING
+  function renderSpreadsheetEditor(data){
+    uploadPanel.style.display = 'none';
+    editorSection.classList.add('show');
+
+    const meta = data.metadata || {};
+    cardBank.textContent = meta.bank_name || "Bank Statement";
+    cardTitle.textContent = meta.account_title || "—";
+    cardAcc.textContent = meta.account_number || "—";
+
+    const sheet = data.sheets && data.sheets[0] ? data.sheets[0] : {columns:[], rows:[]};
+    
+    // Render Table Header
+    tableHead.innerHTML = "";
+    const trHead = document.createElement('tr');
+    trHead.innerHTML = `<th>#</th>` + sheet.columns.map(c => `<th>${c}</th>`).join('') + `<th>Action</th>`;
+    tableHead.appendChild(trHead);
+
+    // Render Rows
+    renderTableRows(sheet);
+    updateCalculatedCards();
+  }
+
+  function renderTableRows(sheet){
+    tableBody.innerHTML = "";
+    sheet.rows.forEach((row, rIdx) => {
+      const tr = document.createElement('tr');
+      const isWarn = row.some(cell => String(cell).includes("Review Required"));
+      if (isWarn) tr.classList.add('flagged');
+
+      let tdCells = `<td>${rIdx + 1}</td>`;
+      row.forEach((cellVal, cIdx) => {
+        let isNum = false;
+        let isCenter = false;
+        const colName = sheet.columns[cIdx] || "";
+        if (colName.includes("Credit") || colName.includes("Debit") || colName.includes("Balance") || colName.includes("Amount")) isNum = true;
+        if (colName.includes("Date") || colName.includes("Status")) isCenter = true;
+
+        let displayVal = cellVal !== null && cellVal !== undefined ? cellVal : "";
+        if (String(displayVal).includes("✅")) {
+          tdCells += `<td class="cell-center"><span class="badge-stat pass">${displayVal}</span></td>`;
+        } else if (String(displayVal).includes("⚠️")) {
+          tdCells += `<td class="cell-center"><span class="badge-stat warn">${displayVal}</span></td>`;
+        } else {
+          tdCells += `<td contenteditable="true" class="${isNum ? 'cell-num' : ''} ${isCenter ? 'cell-center' : ''}" data-row="${rIdx}" data-col="${cIdx}">${displayVal}</td>`;
+        }
+      });
+
+      tdCells += `<td class="cell-center"><button class="btn-del-row" data-row="${rIdx}" title="Delete Row">🗑️</button></td>`;
+      tr.innerHTML = tdCells;
+      tableBody.appendChild(tr);
+    });
+
+    // Attach Cell Edit Listeners
+    tableBody.querySelectorAll('td[contenteditable="true"]').forEach(cell => {
+      cell.addEventListener('blur', (e) => {
+        const r = parseInt(e.target.getAttribute('data-row'));
+        const c = parseInt(e.target.getAttribute('data-col'));
+        if (currentPayload && currentPayload.sheets[0]){
+          currentPayload.sheets[0].rows[r][c] = e.target.textContent.trim();
+          updateCalculatedCards();
+        }
+      });
+    });
+
+    // Attach Row Delete Listeners
+    tableBody.querySelectorAll('.btn-del-row').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const r = parseInt(e.target.getAttribute('data-row'));
+        if (currentPayload && currentPayload.sheets[0]){
+          currentPayload.sheets[0].rows.splice(r, 1);
+          renderTableRows(currentPayload.sheets[0]);
+          updateCalculatedCards();
+        }
+      });
+    });
+  }
+
+  function updateCalculatedCards(){
+    if (!currentPayload || !currentPayload.sheets[0]) return;
+    const sheet = currentPayload.sheets[0];
+    const rows = sheet.rows;
+    cardTotalRows.textContent = `${rows.length} Rows`;
+
+    let totCredit = 0.0;
+    let totDebit = 0.0;
+    let warnCount = 0;
+
+    const credColIdx = sheet.columns.findIndex(c => c.toLowerCase().includes("credit"));
+    const debColIdx = sheet.columns.findIndex(c => c.toLowerCase().includes("debit"));
+
+    rows.forEach(r => {
+      if (credColIdx !== -1 && r[credColIdx]){
+        const n = parseFloat(String(r[credColIdx]).replace(/,/g, ''));
+        if (!isNaN(n)) totCredit += n;
+      }
+      if (debColIdx !== -1 && r[debColIdx]){
+        const n = parseFloat(String(r[debColIdx]).replace(/,/g, ''));
+        if (!isNaN(n)) totDebit += n;
+      }
+      if (r.some(c => String(c).includes("Review Required"))) warnCount++;
+    });
+
+    cardTotalCredit.textContent = totCredit.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+    cardTotalDebit.textContent = totDebit.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+    
+    if (warnCount === 0) {
+      cardRecStatus.className = "value green";
+      cardRecStatus.textContent = "✅ 100% Verified";
+    } else {
+      cardRecStatus.className = "value warn";
+      cardRecStatus.textContent = `⚠️ ${warnCount} Need Review`;
+    }
+  }
+
+  // SWAP DEBIT & CREDIT
+  swapColsBtn.addEventListener('click', () => {
+    if (!currentPayload || !currentPayload.sheets[0]) return;
+    const sheet = currentPayload.sheets[0];
+    const credIdx = sheet.columns.findIndex(c => c.toLowerCase().includes("credit"));
+    const debIdx = sheet.columns.findIndex(c => c.toLowerCase().includes("debit"));
+
+    if (credIdx !== -1 && debIdx !== -1){
+      // Swap columns in header
+      const tmp = sheet.columns[credIdx];
+      sheet.columns[credIdx] = sheet.columns[debIdx];
+      sheet.columns[debIdx] = tmp;
+
+      // Swap in all rows
+      sheet.rows.forEach(r => {
+        const tVal = r[credIdx];
+        r[credIdx] = r[debIdx];
+        r[debIdx] = tVal;
+      });
+
+      renderSpreadsheetEditor(currentPayload);
     }
   });
+
+  // ADD ROW
+  addRowBtn.addEventListener('click', () => {
+    if (!currentPayload || !currentPayload.sheets[0]) return;
+    const sheet = currentPayload.sheets[0];
+    const newRow = sheet.columns.map(() => "");
+    sheet.rows.push(newRow);
+    renderTableRows(sheet);
+    updateCalculatedCards();
+  });
+
+  // RESET / UPLOAD NEW
+  resetEditorBtn.addEventListener('click', () => {
+    editorSection.classList.remove('show');
+    uploadPanel.style.display = 'block';
+    clearSelectedFiles();
+  });
+
+  // EXPORT XLSX & CSV
+  exportXlsxBtn.addEventListener('click', () => doExport("xlsx"));
+  exportCsvBtn.addEventListener('click', () => doExport("csv"));
+
+  async function doExport(format){
+    if (!currentPayload) return;
+    exportXlsxBtn.disabled = true;
+    exportCsvBtn.disabled = true;
+
+    try {
+      const payload = {
+        format: format,
+        filename: currentPayload.filename || "statement",
+        is_statement: currentPayload.is_statement,
+        metadata: currentPayload.metadata,
+        sheets: currentPayload.sheets
+      };
+
+      const res = await fetch(`${API_BASE}/api/export`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+
+      if (!res.ok) throw new Error("Export failed.");
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const baseName = (currentPayload.filename || "statement").replace(/\.[^/.]+$/, "");
+      a.download = `${baseName}_converted.${format}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      alert("Export failed: " + err.message);
+    } finally {
+      exportXlsxBtn.disabled = false;
+      exportCsvBtn.disabled = false;
+    }
+  }
 </script>
 </body>
 </html>

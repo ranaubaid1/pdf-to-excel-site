@@ -1,21 +1,21 @@
 """
-PDF & Image to Excel Converter — Backend API
----------------------------------------------
-Accepts a PDF or Image (.png, .jpg, .jpeg, .webp, .bmp) upload,
-extracts tables using pdfplumber, PyMuPDF (for scanned PDFs), & Tesseract OCR,
-validates financial arithmetic (Prev Balance + Credit - Debit = Balance),
-and returns a downloadable styled .xlsx file with summary reconciliation dashboard.
+STATEXCEL — PDF & Word to Excel Bank Statement Converter Backend API
+--------------------------------------------------------------------
+Accepts PDF, Word (.docx), and Image uploads, detects table/transaction structure,
+supports password-protected PDFs, provides interactive JSON preview for in-browser editing,
+and exports beautifully styled Excel (.xlsx) workbooks and CSV files.
 """
 import io
 import os
 import re
+import csv
 import pdfplumber
 import pandas as pd
 import numpy as np
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
-from flask import Flask, request, send_file, jsonify
+from flask import Flask, request, send_file, jsonify, Response
 from flask_cors import CORS
 
 import pytesseract
@@ -23,12 +23,22 @@ import cv2
 from PIL import Image
 
 try:
-    import pymupdf as fitz  # PyMuPDF for scanned PDF page rendering
+    import pymupdf as fitz  # PyMuPDF for high-speed page rendering
 except ImportError:
     try:
         import fitz
     except ImportError:
         fitz = None
+
+try:
+    import docx  # python-docx for Word documents
+except ImportError:
+    docx = None
+
+try:
+    import pypdf  # pypdf for encrypted PDF password handling
+except ImportError:
+    pypdf = None
 
 # Configure Tesseract binary path on Windows
 tess_path = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
@@ -38,10 +48,11 @@ if os.path.exists(tess_path):
 app = Flask(__name__)
 CORS(app)
 
-MAX_FILE_SIZE_MB = 20
+MAX_FILE_SIZE_MB = 25
 app.config["MAX_CONTENT_LENGTH"] = MAX_FILE_SIZE_MB * 1024 * 1024
 
 IMAGE_EXTENSIONS = ('.png', '.jpg', '.jpeg', '.webp', '.bmp', '.tiff')
+DOCX_EXTENSIONS = ('.docx', '.doc')
 
 
 class NamedBytesIO(io.BytesIO):
@@ -92,28 +103,30 @@ def _clean_dataframe(df):
     return df
 
 
-def _calculate_missing_ratio(df):
-    """Calculate what fraction of cells are empty/missing."""
-    if df.empty or len(df.columns) <= 2:
-        return 1.0
-    data_cols = df.iloc[:, 2:]
-    total = data_cols.size
-    if total == 0:
-        return 1.0
-    empty_count = data_cols.apply(
-        lambda col: col.apply(lambda x: pd.isna(x) or str(x).strip() == "")
-    ).sum().sum()
-    return empty_count / total
+def _amount_to_number(amt_str):
+    """Converts a messy currency string to float or None."""
+    if not amt_str or str(amt_str).strip() == "":
+        return None
+    clean = str(amt_str).replace('+', '').replace('-', '').replace('PKR', '').replace('USD', '').replace('EUR', '').replace('GBP', '').replace('Rs.', '').replace(',', '').replace(' ', '').strip()
+    clean = clean.replace('$0', '50').replace('S0', '50').replace('s0', '50').replace('$', '5')
+    if clean.count('.') > 1:
+        parts = clean.split('.')
+        clean = ''.join(parts[:-1]) + '.' + parts[-1]
+    try:
+        val = float(clean)
+        return val
+    except ValueError:
+        return None
 
 
 def _parse_text_lines_to_df(lines, p1_text="", p_last_text=""):
     """
-    Core text line parser shared by PDF text extraction, Scanned PDF OCR, and Image OCR.
+    Universal line parser for bank statements.
     Extracts metadata, dates, descriptions, credit, debit, available balance,
-    and performs financial arithmetic reconciliation validation.
-    Supports Meezan, BOP, Allied, and Standard Chartered Bank Statements.
+    and performs running total mathematical validation.
     """
-    date_pattern = re.compile(r'^(?:\d{1,2}[/\-\s]?(?:\d{2}|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|Ju1|suled|aug|jul)[/\-\s]?(?:\d{2}|\d{4}))\b', re.I)
+    months_sc = 'Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|Ju1|suled|aug|jul'
+    date_pattern = re.compile(rf'^(?:\d{{1,2}}[/\-\s]?(?:\d{{2}}|{months_sc})[/\-\s]?(?:\d{{2}}|\d{{4}}))\b', re.I)
     sc_ref_pattern = re.compile(r'PK-\d{3}-(\d{2})(\d{2})(\d{2})-')
     amount_pattern = re.compile(r'(?:[+-]\s*PKR\s*[\d,.]+|PKR\s*[\d,.]+|(?<=\s)[\d,]+\.\d{2}(?=\s|$)|(?<=\s)[\d,]+\.\d{1,2}(?=\s|$))')
     footer_pattern = re.compile(r'^\d+\s+\d{2}\s+\w{3}\s+\d{4},\s+\d{2}:\d{2}$|^\d+\s*\|\s*Page$|^\*\*\*\*\*\*End of statement\*\*\*\*\*\*|The items and balance on this statement|Please note that this is a system generated')
@@ -128,14 +141,14 @@ def _parse_text_lines_to_df(lines, p1_text="", p_last_text=""):
         if not line or footer_pattern.search(line) or 'This is a system generated report' in line or 'STATEMENT PERIOD' in line or 'Balance B/F' in line:
             continue
 
-        # Clean OCR noise ($/S/s before comma or amount)
+        # Clean OCR noise
         line = line.replace('$,', ' ').replace('S,', ' ').replace('s,', ' ')
 
-        # Normalize OCR number misreads (e.g. 6.067.389.60 -> 6,067,389.60 and 5.560,389.60 -> 5,560,389.60)
+        # Normalize OCR number misreads
         line = re.sub(r'(\d{1,3})\.(\d{3})[\.,](\d{3})\.(\d{2})', r'\1,\2,\3.\4', line)
         line = re.sub(r'(\d{1,3})\.(\d{3})[\.,](\d{2})', r'\1,\2.\3', line)
 
-        # Normalize missing slash in OCR dates (e.g. 0201/2026 -> 02/01/2026)
+        # Normalize missing slash in dates
         norm_line = re.sub(r'^(\d{2})(\d{2})/(\d{4})', r'\1/\2/\3', line)
 
         m_sc_ref = sc_ref_pattern.search(line)
@@ -192,22 +205,6 @@ def _parse_text_lines_to_df(lines, p1_text="", p_last_text=""):
 
     if not all_entries:
         return []
-
-    def _amount_to_number(amt_str):
-        if not amt_str or str(amt_str).strip() == "":
-            return None
-        clean = amt_str.replace('+', '').replace('-', '').replace('PKR', '').replace(',', '').replace(' ', '').strip()
-        clean = clean.replace('$0', '50').replace('S0', '50').replace('s0', '50').replace('$', '5')
-        if clean.count('.') > 1:
-            parts = clean.split('.')
-            clean = ''.join(parts[:-1]) + '.' + parts[-1]
-        try:
-            val = float(clean)
-            if val == 0.0:
-                return None
-            return val
-        except ValueError:
-            return None
 
     # Parse metadata header
     account_title = ""
@@ -418,6 +415,7 @@ def _parse_text_lines_to_df(lines, p1_text="", p_last_text=""):
     df.attrs["is_statement"] = True
     df.attrs["bank_name"] = bank_name
     df.attrs["metadata"] = {
+        "bank_name": bank_name,
         "account_title": account_title,
         "account_number": account_number,
         "iban": iban,
@@ -426,7 +424,9 @@ def _parse_text_lines_to_df(lines, p1_text="", p_last_text=""):
         "opening_balance": opening_balance,
         "closing_balance": closing_balance,
         "review_count": review_needed_count,
-        "total_records": len(records)
+        "total_records": len(records),
+        "total_credit": total_credit,
+        "total_debit": total_debit
     }
     df.attrs["records"] = records
     return [df]
@@ -542,6 +542,95 @@ def _extract_tables_from_images(image_files):
         return []
 
     return _parse_text_lines_to_df(combined_lines, first_ocr_text, last_ocr_text)
+
+
+def extract_tables_from_docx(file_stream):
+    """
+    Extracts tables and paragraph text from Microsoft Word (.docx) files.
+    """
+    if not docx:
+        return []
+
+    file_stream.seek(0)
+    doc = docx.Document(file_stream)
+    dataframes = []
+
+    # Strategy 1: Native Word Tables
+    for t_idx, table in enumerate(doc.tables, 1):
+        rows_data = []
+        for row in table.rows:
+            row_cells = [cell.text.strip().replace("\n", " ") for cell in row.cells]
+            if any(c for c in row_cells):
+                rows_data.append(row_cells)
+
+        if len(rows_data) >= 2:
+            header, valid_indices = _clean_header(rows_data[0])
+            if not header:
+                header = [f"Col_{i+1}" for i in range(len(rows_data[0]))]
+                valid_indices = list(range(len(rows_data[0])))
+                body = rows_data
+            else:
+                body = rows_data[1:]
+
+            cleaned_rows = []
+            for r in body:
+                cleaned_row = [r[i] if i < len(r) else "" for i in valid_indices]
+                if any(c for c in cleaned_row):
+                    cleaned_rows.append(cleaned_row)
+
+            if cleaned_rows:
+                df = pd.DataFrame(cleaned_rows, columns=header[:len(cleaned_rows[0])])
+                df = _clean_dataframe(df)
+                if not df.empty:
+                    df.attrs["sheet_name"] = f"Table_{t_idx}"[:31]
+                    dataframes.append(df)
+
+    if dataframes:
+        return dataframes
+
+    # Strategy 2: Paragraph text line parsing (for statements formatted in Word paragraphs)
+    lines = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
+    if lines:
+        text_dfs = _parse_text_lines_to_df(lines, "\n".join(lines[:20]), "\n".join(lines[-20:]))
+        if text_dfs and len(text_dfs) > 0 and text_dfs[0].attrs.get("records"):
+            return text_dfs
+
+    return []
+
+
+def check_and_decrypt_pdf(file_stream, password=None):
+    """
+    Checks if a PDF is password protected using pypdf.
+    Returns (decrypted_stream, error_response).
+    """
+    if not pypdf:
+        return file_stream, None
+
+    file_stream.seek(0)
+    try:
+        reader = pypdf.PdfReader(file_stream)
+        if reader.is_encrypted:
+            if not password:
+                return None, (jsonify({"password_required": True, "error": "This PDF is password-protected. Please enter password."}), 401)
+            
+            decrypt_res = reader.decrypt(password)
+            if decrypt_res == 0:
+                return None, (jsonify({"password_required": True, "error": "Incorrect password. Please try again."}), 401)
+            
+            # Write decrypted PDF to fresh BytesIO
+            writer = pypdf.PdfWriter()
+            for page in reader.pages:
+                writer.add_page(page)
+            decrypted_stream = io.BytesIO()
+            writer.write(decrypted_stream)
+            decrypted_stream.seek(0)
+            return decrypted_stream, None
+        else:
+            file_stream.seek(0)
+            return file_stream, None
+    except Exception:
+        file_stream.seek(0)
+        return file_stream, None
 
 
 def extract_tables_from_pdf(file_stream):
@@ -660,7 +749,7 @@ def _build_styled_excel_file(dataframes):
     Builds a beautifully styled openpyxl Excel file with:
     - Executive Header & Reconciliation Dashboard
     - Soft yellow highlight for rows flagged as ⚠️ Review Required
-    - Auto Column Widths & Gridlines
+    - Auto Column Widths, Frozen Headers & Gridlines
     """
     wb = openpyxl.Workbook()
     wb.remove(wb.active)
@@ -821,6 +910,8 @@ def _build_styled_excel_file(dataframes):
             c_tot_deb.border = total_border
             c_tot_deb.alignment = Alignment(horizontal="right")
 
+            ws.freeze_panes = "A12"
+
         else:
             write_header = df.attrs.get("has_header", True)
             start_row = 1
@@ -830,6 +921,7 @@ def _build_styled_excel_file(dataframes):
                     c.fill = navy_fill
                     c.font = white_bold_font
                 start_row = 2
+                ws.freeze_panes = "A2"
 
             for r_offset, row in enumerate(df.values):
                 r_idx = start_row + r_offset
@@ -887,12 +979,18 @@ def index():
 
 @app.route("/api/health", methods=["GET"])
 def health():
-    return jsonify({"status": "ok"})
+    return jsonify({"status": "ok", "app": "STATEXCEL", "version": "2.0.0"})
 
 
-@app.route("/api/convert", methods=["POST"])
-def convert_pdf_to_excel():
+@app.route("/api/preview", methods=["POST"])
+def preview_file():
+    """
+    Parses uploaded file (with optional password) and returns JSON metadata,
+    columns, and rows for in-browser spreadsheet preview and editing.
+    """
     files = request.files.getlist("file")
+    password = request.form.get("password", None)
+
     if not files or files[0].filename == "":
         return jsonify({"error": "No file uploaded. Field name must be 'file'."}), 400
 
@@ -900,45 +998,226 @@ def convert_pdf_to_excel():
     if not valid_files:
         return jsonify({"error": "Empty filename."}), 400
 
-    for f in valid_files:
-        fn_lower = f.filename.lower()
-        if not (fn_lower.endswith(".pdf") or fn_lower.endswith(IMAGE_EXTENSIONS)):
-            return jsonify({"error": "Only .pdf and image files (.png, .jpg, .jpeg, .webp, .bmp) are supported."}), 400
+    first_file = valid_files[0]
+    fn_lower = first_file.filename.lower()
+
+    if not (fn_lower.endswith(".pdf") or fn_lower.endswith(DOCX_EXTENSIONS) or fn_lower.endswith(IMAGE_EXTENSIONS)):
+        return jsonify({"error": "Supported formats: PDF (.pdf), Word (.docx), and Images (.png, .jpg, .jpeg, .webp, .bmp)."}), 400
 
     try:
-        first_file = valid_files[0]
-        fn_lower = first_file.filename.lower()
+        file_bytes = first_file.read()
+        file_stream = io.BytesIO(file_bytes)
 
-        try:
-            if fn_lower.endswith(".pdf"):
-                file_bytes = first_file.read()
-                file_stream = io.BytesIO(file_bytes)
-                dataframes = extract_tables_from_pdf(file_stream)
-            else:
-                dataframes = _extract_tables_from_images(valid_files)
-        except Exception as parse_err:
-            return jsonify({"error": f"Invalid or corrupted file: {str(parse_err)}"}), 400
+        if fn_lower.endswith(".pdf"):
+            decrypted_stream, err_response = check_and_decrypt_pdf(file_stream, password)
+            if err_response:
+                return err_response
+            dataframes = extract_tables_from_pdf(decrypted_stream)
+        elif fn_lower.endswith(DOCX_EXTENSIONS):
+            dataframes = extract_tables_from_docx(file_stream)
+        else:
+            dataframes = _extract_tables_from_images(valid_files)
 
         if not dataframes:
-            # Universal Fallback: Convert plain text documents to Excel so NO file ever fails
+            # Universal text fallback
             file_stream.seek(0)
             text_lines = []
             with pdfplumber.open(file_stream) as pdf:
-                for p_idx, p in enumerate(pdf.pages, 1):
+                for p in pdf.pages:
                     txt = p.extract_text()
                     if txt:
                         for l in txt.split('\n'):
                             if l.strip():
                                 text_lines.append(l.strip())
             
-            if text_lines:
-                rows = [[i+1, l] for i, l in enumerate(text_lines)]
-            else:
-                rows = [[1, "Document contains no readable text or table."]]
-            
+            rows = [[i+1, l] for i, l in enumerate(text_lines)] if text_lines else [[1, "No readable text detected."]]
             df_fallback = pd.DataFrame(rows, columns=["Line No.", "Document Content"])
             df_fallback.attrs["sheet_name"] = "Document Content"
-            df_fallback.attrs["has_header"] = True
+            dataframes = [df_fallback]
+
+        # Structure payload for in-browser editor
+        primary_df = dataframes[0]
+        is_statement = primary_df.attrs.get("is_statement", False)
+        metadata = primary_df.attrs.get("metadata", {})
+
+        sheets_payload = []
+        for df in dataframes:
+            sheet_title = df.attrs.get("sheet_name", "Sheet1")
+            cols = list(df.columns)
+            
+            if df.attrs.get("is_statement") and df.attrs.get("records"):
+                rec_list = df.attrs.get("records", [])
+                cols = ["Booking Date", "Description", "Credit", "Debit", "Available Balance", "Validation Status"]
+                rows_data = []
+                for r in rec_list:
+                    rows_data.append([
+                        r.get("date", ""),
+                        r.get("desc", ""),
+                        r.get("credit", ""),
+                        r.get("debit", ""),
+                        r.get("balance", ""),
+                        r.get("status", "✅ Verified")
+                    ])
+            else:
+                rows_data = df.values.tolist()
+
+            sheets_payload.append({
+                "name": sheet_title,
+                "columns": cols,
+                "rows": rows_data
+            })
+
+        return jsonify({
+            "status": "ok",
+            "filename": first_file.filename,
+            "is_statement": is_statement,
+            "metadata": metadata,
+            "sheets": sheets_payload
+        })
+
+    except Exception as exc:
+        return jsonify({"error": f"Preview failed: {str(exc)}"}), 500
+
+
+@app.route("/api/export", methods=["POST"])
+def export_file():
+    """
+    Receives JSON payload from in-browser spreadsheet editor and generates
+    downloadable styled .xlsx or .csv.
+    """
+    payload = request.get_json()
+    if not payload:
+        return jsonify({"error": "Invalid export payload."}), 400
+
+    export_format = payload.get("format", "xlsx").lower()
+    filename = payload.get("filename", "statement")
+    is_statement = payload.get("is_statement", False)
+    metadata = payload.get("metadata", {})
+    sheets = payload.get("sheets", [])
+
+    if not sheets:
+        return jsonify({"error": "No sheets to export."}), 400
+
+    dataframes = []
+    for s in sheets:
+        sheet_name = s.get("name", "Sheet1")
+        cols = s.get("columns", [])
+        rows = s.get("rows", [])
+
+        df = pd.DataFrame(rows, columns=cols if cols else None)
+        df.attrs["sheet_name"] = sheet_name[:31]
+
+        if is_statement:
+            df.attrs["is_statement"] = True
+            df.attrs["metadata"] = metadata
+            df.attrs["bank_name"] = metadata.get("bank_name", "Bank")
+
+            # Parse records from rows
+            records = []
+            for r in rows:
+                if len(r) >= 5:
+                    records.append({
+                        "date": str(r[0] or ""),
+                        "desc": str(r[1] or ""),
+                        "credit": _amount_to_number(r[2]),
+                        "debit": _amount_to_number(r[3]),
+                        "balance": _amount_to_number(r[4]),
+                        "status": str(r[5] if len(r) > 5 else "✅ Verified")
+                    })
+            df.attrs["records"] = records
+
+        dataframes.append(df)
+
+    base_name = os.path.splitext(filename)[0]
+
+    if export_format == "csv":
+        # CSV Export
+        si = io.StringIO()
+        cw = csv.writer(si)
+        primary_df = dataframes[0]
+        
+        if is_statement and primary_df.attrs.get("records"):
+            cw.writerow([f"{metadata.get('bank_name', 'Bank')} Account Statement"])
+            cw.writerow(["Account Title:", metadata.get("account_title", "")])
+            cw.writerow(["Account Number:", metadata.get("account_number", "")])
+            cw.writerow(["IBAN:", metadata.get("iban", "")])
+            cw.writerow(["Currency:", metadata.get("currency", "PKR")])
+            cw.writerow([])
+            cw.writerow(["Booking Date", "Description", "Credit", "Debit", "Available Balance", "Validation Status"])
+            for r in primary_df.attrs.get("records", []):
+                cw.writerow([r["date"], r["desc"], r["credit"] or "", r["debit"] or "", r["balance"] or "", r["status"]])
+        else:
+            if list(primary_df.columns):
+                cw.writerow(list(primary_df.columns))
+            for row in primary_df.values:
+                cw.writerow(list(row))
+
+        output = io.BytesIO(si.getvalue().encode('utf-8'))
+        return send_file(
+            output,
+            mimetype="text/csv",
+            as_attachment=True,
+            download_name=f"{base_name}_converted.csv"
+        )
+
+    else:
+        # Excel (.xlsx) Export
+        output = _build_styled_excel_file(dataframes)
+        return send_file(
+            output,
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            as_attachment=True,
+            download_name=f"{base_name}_converted.xlsx"
+        )
+
+
+@app.route("/api/convert", methods=["POST"])
+def convert_pdf_to_excel():
+    """Direct 1-click conversion."""
+    files = request.files.getlist("file")
+    password = request.form.get("password", None)
+
+    if not files or files[0].filename == "":
+        return jsonify({"error": "No file uploaded. Field name must be 'file'."}), 400
+
+    valid_files = [f for f in files if f.filename != ""]
+    if not valid_files:
+        return jsonify({"error": "Empty filename."}), 400
+
+    first_file = valid_files[0]
+    fn_lower = first_file.filename.lower()
+
+    if not (fn_lower.endswith(".pdf") or fn_lower.endswith(DOCX_EXTENSIONS) or fn_lower.endswith(IMAGE_EXTENSIONS)):
+        return jsonify({"error": "Supported formats: PDF (.pdf), Word (.docx), and Images (.png, .jpg, .jpeg, .webp, .bmp)."}), 400
+
+    try:
+        file_bytes = first_file.read()
+        file_stream = io.BytesIO(file_bytes)
+
+        if fn_lower.endswith(".pdf"):
+            decrypted_stream, err_response = check_and_decrypt_pdf(file_stream, password)
+            if err_response:
+                return err_response
+            dataframes = extract_tables_from_pdf(decrypted_stream)
+        elif fn_lower.endswith(DOCX_EXTENSIONS):
+            dataframes = extract_tables_from_docx(file_stream)
+        else:
+            dataframes = _extract_tables_from_images(valid_files)
+
+        if not dataframes:
+            file_stream.seek(0)
+            text_lines = []
+            with pdfplumber.open(file_stream) as pdf:
+                for p in pdf.pages:
+                    txt = p.extract_text()
+                    if txt:
+                        for l in txt.split('\n'):
+                            if l.strip():
+                                text_lines.append(l.strip())
+            
+            rows = [[i+1, l] for i, l in enumerate(text_lines)] if text_lines else [[1, "Document contains no readable text or table."]]
+            df_fallback = pd.DataFrame(rows, columns=["Line No.", "Document Content"])
+            df_fallback.attrs["sheet_name"] = "Document Content"
             dataframes = [df_fallback]
 
         output = _build_styled_excel_file(dataframes)
