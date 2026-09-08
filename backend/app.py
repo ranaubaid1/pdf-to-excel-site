@@ -990,8 +990,6 @@ def _build_styled_excel_file(dataframes):
             c_tot_deb.border = total_border
             c_tot_deb.alignment = Alignment(horizontal="right")
 
-            ws.freeze_panes = "A12"
-
         else:
             write_header = df.attrs.get("has_header", True)
             start_row = 1
@@ -1001,7 +999,6 @@ def _build_styled_excel_file(dataframes):
                     c.fill = navy_fill
                     c.font = white_bold_font
                 start_row = 2
-                ws.freeze_panes = "A2"
 
             for r_offset, row in enumerate(df.values):
                 r_idx = start_row + r_offset
