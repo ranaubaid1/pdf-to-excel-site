@@ -792,11 +792,8 @@
         <div class="meta-stat-label">Total Withdrawals / Debits</div>
         <div class="meta-stat-value" id="cardTotalDebit">0.00</div>
       </div>
-      <div class="meta-stat-card">
-        <div class="meta-stat-label">Balance Audit</div>
-        <div class="meta-stat-value green" id="cardRecStatus">✅ Verified</div>
-      </div>
     </div>
+
 
     <!-- GRID TOOLBAR -->
     <div class="grid-toolbar">
@@ -882,10 +879,10 @@
   const cardTotalRows = document.getElementById('cardTotalRows');
   const cardTotalCredit = document.getElementById('cardTotalCredit');
   const cardTotalDebit = document.getElementById('cardTotalDebit');
-  const cardRecStatus = document.getElementById('cardRecStatus');
 
   let selectedFiles = [];
   let currentPayload = null;
+
 
   function formatSize(bytes){
     if (bytes < 1024) return bytes + " B";
@@ -1142,16 +1139,10 @@
         let isCenter = false;
         const colName = sheet.columns[cIdx] || "";
         if (colName.includes("Credit") || colName.includes("Debit") || colName.includes("Balance") || colName.includes("Amount")) isNum = true;
-        if (colName.includes("Date") || colName.includes("Status")) isCenter = true;
+        if (colName.includes("Date")) isCenter = true;
 
         let displayVal = cellVal !== null && cellVal !== undefined ? cellVal : "";
-        if (String(displayVal).includes("✅")) {
-          tdCells += `<td class="cell-center"><span class="badge-stat pass">${displayVal}</span></td>`;
-        } else if (String(displayVal).includes("⚠️")) {
-          tdCells += `<td class="cell-center"><span class="badge-stat warn">${displayVal}</span></td>`;
-        } else {
-          tdCells += `<td contenteditable="true" class="${isNum ? 'cell-num' : ''} ${isCenter ? 'cell-center' : ''}" data-row="${rIdx}" data-col="${cIdx}">${displayVal}</td>`;
-        }
+        tdCells += `<td contenteditable="true" class="${isNum ? 'cell-num' : ''} ${isCenter ? 'cell-center' : ''}" data-row="${rIdx}" data-col="${cIdx}">${displayVal}</td>`;
       });
 
       tdCells += `<td class="cell-center"><button class="btn-delete-row" data-row="${rIdx}" title="Delete Row">🗑️</button></td>`;
@@ -1192,7 +1183,6 @@
 
     let totCredit = 0.0;
     let totDebit = 0.0;
-    let warnCount = 0;
 
     const credColIdx = sheet.columns.findIndex(c => c.toLowerCase().includes("credit"));
     const debColIdx = sheet.columns.findIndex(c => c.toLowerCase().includes("debit"));
@@ -1206,20 +1196,12 @@
         const n = parseFloat(String(r[debColIdx]).replace(/,/g, ''));
         if (!isNaN(n)) totDebit += n;
       }
-      if (r.some(c => String(c).includes("Review Required"))) warnCount++;
     });
 
     cardTotalCredit.textContent = totCredit.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
     cardTotalDebit.textContent = totDebit.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
-    
-    if (warnCount === 0) {
-      cardRecStatus.className = "meta-stat-value green";
-      cardRecStatus.textContent = "✅ 100% Verified";
-    } else {
-      cardRecStatus.className = "meta-stat-value warn";
-      cardRecStatus.textContent = `⚠️ ${warnCount} Need Review`;
-    }
   }
+
 
   // SWAP DEBIT & CREDIT
   swapColsBtn.addEventListener('click', () => {

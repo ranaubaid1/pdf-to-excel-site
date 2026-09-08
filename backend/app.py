@@ -460,25 +460,14 @@ def _parse_text_lines_to_df(lines, p1_text="", p_last_text=""):
 
         desc_clean = re.sub(r'\s{2,}', ' ', e['desc'].strip()).strip()
 
-        # Financial Arithmetic Reconciliation Validation
-        validation_status = "✅ Verified"
-        if running_balance is not None and balance is not None:
-            expected_balance = running_balance + (credit or 0.0) - (debit or 0.0)
-            if abs(expected_balance - balance) > 0.10:
-                validation_status = "⚠️ Review Required"
-                review_needed_count += 1
-            running_balance = balance
-        elif balance is not None:
-            running_balance = balance
-
         records.append({
             "date": e['date'],
             "desc": desc_clean,
             "credit": credit,
             "debit": debit,
-            "balance": balance,
-            "status": validation_status
+            "balance": balance
         })
+
 
         c_str = f"{credit:.2f}" if credit is not None else ""
         d_str = f"{debit:.2f}" if debit is not None else ""
@@ -857,11 +846,8 @@ def _build_styled_excel_file(dataframes):
         if is_statement:
             meta = df.attrs.get("metadata", {})
             bank_name = df.attrs.get("bank_name", "Bank")
-            review_count = meta.get("review_count", 0)
 
             ws.cell(row=1, column=1, value=f"{bank_name} Account Statement").font = title_font
-
-            rec_status = "✅ 100% Verified (0 Errors)" if review_count == 0 else f"⚠️ {review_count} Rows Need Review"
 
             meta_items = [
                 ("Account Title:", meta.get("account_title", "")),
@@ -871,7 +857,6 @@ def _build_styled_excel_file(dataframes):
                 ("Statement Period:", meta.get("statement_period", "")),
                 ("Opening Balance:", meta.get("opening_balance", None)),
                 ("Closing Balance:", meta.get("closing_balance", None)),
-                ("Reconciliation Status:", rec_status),
             ]
 
             curr_row = 3
@@ -887,10 +872,6 @@ def _build_styled_excel_file(dataframes):
                         val_cell.alignment = Alignment(horizontal="right")
                     except ValueError:
                         val_cell.value = str(val)
-                elif label == "Reconciliation Status:":
-                    val_cell.value = str(val)
-                    val_cell.font = pass_font if "✅" in str(val) else warn_font
-                    val_cell.fill = green_fill if "✅" in str(val) else yellow_fill
                 else:
                     val_cell.value = str(val) if val is not None else ""
                     val_cell.number_format = "@"
@@ -900,14 +881,14 @@ def _build_styled_excel_file(dataframes):
 
             curr_row = 11
 
-            headers = ["Booking Date", "Description", "Credit", "Debit", "Available Balance", "Validation Status"]
+            headers = ["Booking Date", "Description", "Credit", "Debit", "Available Balance"]
             for col_idx, h_text in enumerate(headers, 1):
                 c = ws.cell(row=curr_row, column=col_idx, value=h_text)
                 c.fill = navy_fill
                 c.font = white_bold_font
                 if h_text in ["Credit", "Debit", "Available Balance"]:
                     c.alignment = Alignment(horizontal="right", vertical="center")
-                elif h_text in ["Booking Date", "Validation Status"]:
+                elif h_text in ["Booking Date"]:
                     c.alignment = Alignment(horizontal="center", vertical="center")
                 else:
                     c.alignment = Alignment(horizontal="left", vertical="center")
@@ -917,18 +898,13 @@ def _build_styled_excel_file(dataframes):
             row_idx = first_data_row
 
             for r in records:
-                is_warn = "Review Required" in r.get("status", "")
-                row_fill = yellow_fill if is_warn else None
-
                 c_date = ws.cell(row=row_idx, column=1, value=r.get("date", ""))
                 c_date.alignment = Alignment(horizontal="center")
                 c_date.font = regular_font
-                if row_fill: c_date.fill = row_fill
 
                 c_desc = ws.cell(row=row_idx, column=2, value=r.get("desc", ""))
                 c_desc.alignment = Alignment(horizontal="left", wrap_text=True)
                 c_desc.font = regular_font
-                if row_fill: c_desc.fill = row_fill
 
                 c_cred = ws.cell(row=row_idx, column=3)
                 if r.get("credit") is not None:
@@ -939,7 +915,6 @@ def _build_styled_excel_file(dataframes):
                         c_cred.value = str(r["credit"])
                 c_cred.alignment = Alignment(horizontal="right")
                 c_cred.font = regular_font
-                if row_fill: c_cred.fill = row_fill
 
                 c_deb = ws.cell(row=row_idx, column=4)
                 if r.get("debit") is not None:
@@ -950,7 +925,6 @@ def _build_styled_excel_file(dataframes):
                         c_deb.value = str(r["debit"])
                 c_deb.alignment = Alignment(horizontal="right")
                 c_deb.font = regular_font
-                if row_fill: c_deb.fill = row_fill
 
                 c_bal = ws.cell(row=row_idx, column=5)
                 if r.get("balance") is not None:
@@ -961,12 +935,6 @@ def _build_styled_excel_file(dataframes):
                         c_bal.value = str(r["balance"])
                 c_bal.alignment = Alignment(horizontal="right")
                 c_bal.font = regular_font
-                if row_fill: c_bal.fill = row_fill
-
-                c_stat = ws.cell(row=row_idx, column=6, value=r.get("status", "✅ Verified"))
-                c_stat.alignment = Alignment(horizontal="center")
-                c_stat.font = warn_font if is_warn else pass_font
-                if row_fill: c_stat.fill = row_fill
 
                 row_idx += 1
 
@@ -977,6 +945,7 @@ def _build_styled_excel_file(dataframes):
             lbl_tot = ws.cell(row=tot_row, column=2, value="Total")
             lbl_tot.font = bold_font
             lbl_tot.alignment = Alignment(horizontal="right")
+
 
             c_tot_cred = ws.cell(row=tot_row, column=3, value=f"=SUM(C{first_data_row}:C{last_data_row})")
             c_tot_cred.font = bold_font
@@ -1139,7 +1108,7 @@ def preview_file():
             
             if df.attrs.get("is_statement") and df.attrs.get("records"):
                 rec_list = df.attrs.get("records", [])
-                cols = ["Booking Date", "Description", "Credit", "Debit", "Available Balance", "Validation Status"]
+                cols = ["Booking Date", "Description", "Credit", "Debit", "Available Balance"]
                 rows_data = []
                 for r in rec_list:
                     rows_data.append([
@@ -1147,8 +1116,7 @@ def preview_file():
                         r.get("desc", ""),
                         r.get("credit", ""),
                         r.get("debit", ""),
-                        r.get("balance", ""),
-                        r.get("status", "✅ Verified")
+                        r.get("balance", "")
                     ])
             else:
                 rows_data = df.values.tolist()
@@ -1220,8 +1188,7 @@ def export_file():
                             "desc": str(r[1] or ""),
                             "credit": _amount_to_number(r[2]),
                             "debit": _amount_to_number(r[3]),
-                            "balance": _amount_to_number(r[4]),
-                            "status": str(r[5] if len(r) > 5 else "✅ Verified")
+                            "balance": _amount_to_number(r[4])
                         })
                 df.attrs["records"] = records
 
@@ -1242,14 +1209,15 @@ def export_file():
                 cw.writerow(["IBAN:", metadata.get("iban", "")])
                 cw.writerow(["Currency:", metadata.get("currency", "PKR")])
                 cw.writerow([])
-                cw.writerow(["Booking Date", "Description", "Credit", "Debit", "Available Balance", "Validation Status"])
+                cw.writerow(["Booking Date", "Description", "Credit", "Debit", "Available Balance"])
                 for r in primary_df.attrs.get("records", []):
-                    cw.writerow([r["date"], r["desc"], r["credit"] or "", r["debit"] or "", r["balance"] or "", r["status"]])
+                    cw.writerow([r["date"], r["desc"], r["credit"] or "", r["debit"] or "", r["balance"] or ""])
             else:
                 if list(primary_df.columns):
                     cw.writerow(list(primary_df.columns))
                 for row in primary_df.values:
                     cw.writerow(list(row))
+
 
             output = io.BytesIO(si.getvalue().encode('utf-8'))
             return send_file(
