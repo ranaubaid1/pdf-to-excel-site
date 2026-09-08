@@ -398,20 +398,20 @@ def _parse_text_lines_to_df(lines, p1_text="", p_last_text=""):
     records = []
     header_rows = []
 
-    header_rows.append([f"{bank_name} Account Statement", "", "", "", "", ""])
-    header_rows.append(["", "", "", "", "", ""])
-    header_rows.append(["Account Title:", account_title, "", "", "", ""])
-    header_rows.append(["Account Number:", account_number, "", "", "", ""])
-    header_rows.append(["IBAN:", iban, "", "", "", ""])
-    header_rows.append(["Currency:", currency, "", "", "", ""])
-    header_rows.append(["Statement Period:", statement_period, "", "", "", ""])
-    header_rows.append(["Opening Balance:", opening_balance if opening_balance is not None else "", "", "", "", ""])
-    header_rows.append(["Closing Balance:", closing_balance if closing_balance is not None else "", "", "", "", ""])
-    header_rows.append(["", "", "", "", "", ""])
-    header_rows.append(["Booking Date", "Description", "Credit", "Debit", "Available Balance", "Validation Status"])
+
+    header_rows.append([f"{bank_name} Account Statement", "", "", "", ""])
+    header_rows.append(["", "", "", "", ""])
+    header_rows.append(["Account Title:", account_title, "", "", ""])
+    header_rows.append(["Account Number:", account_number, "", "", ""])
+    header_rows.append(["IBAN:", iban, "", "", ""])
+    header_rows.append(["Currency:", currency, "", "", ""])
+    header_rows.append(["Statement Period:", statement_period, "", "", ""])
+    header_rows.append(["Opening Balance:", opening_balance if opening_balance is not None else "", "", "", ""])
+    header_rows.append(["Closing Balance:", closing_balance if closing_balance is not None else "", "", "", ""])
+    header_rows.append(["", "", "", "", ""])
+    header_rows.append(["Booking Date", "Description", "Credit", "Debit", "Available Balance"])
 
     running_balance = opening_balance
-    review_needed_count = 0
 
     for e in all_entries:
         if not e['amounts']:
@@ -468,17 +468,17 @@ def _parse_text_lines_to_df(lines, p1_text="", p_last_text=""):
             "balance": balance
         })
 
-
         c_str = f"{credit:.2f}" if credit is not None else ""
         d_str = f"{debit:.2f}" if debit is not None else ""
         b_str = f"{balance:.2f}" if balance is not None else ""
-        header_rows.append([e['date'], desc_clean, c_str, d_str, b_str, validation_status])
+        header_rows.append([e['date'], desc_clean, c_str, d_str, b_str])
 
-    header_rows.append(["", "", "", "", "", ""])
-    header_rows.append(["", "Total", f"{total_credit:.2f}", f"{total_debit:.2f}", "", ""])
+    header_rows.append(["", "", "", "", ""])
+    header_rows.append(["", "Total", f"{total_credit:.2f}", f"{total_debit:.2f}", ""])
 
-    col_names = [f"{bank_name} Account Statement" if i == 0 else f"Unnamed: {i}" for i in range(6)]
+    col_names = [f"{bank_name} Account Statement" if i == 0 else f"Unnamed: {i}" for i in range(5)]
     df = pd.DataFrame(header_rows, columns=col_names)
+
     df.attrs["sheet_name"] = "Account Statement"
     df.attrs["has_header"] = False
     df.attrs["is_statement"] = True
