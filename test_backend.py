@@ -116,70 +116,56 @@ def test_multiple_tables_pages():
         return False
 
 def test_no_table():
-    print("\n--- Test 3: No Table in PDF ---")
+    print("\n--- Test 3: No Table in PDF (Universal Fallback) ---")
     file_path = "test_files/no_table.pdf"
     with open(file_path, "rb") as f:
         res = requests.post(f"{BASE_URL}/api/convert", files={"file": f})
         
     print(f"Status Code: {res.status_code}")
-    print(f"Response: {res.text}")
-    
-    if res.status_code == 422:
-        try:
-            data = res.json()
-            if "No tables" in data.get("error", ""):
-                print("Pass")
-                return True
-        except:
-            pass
+    if res.status_code == 200 and res.headers.get("Content-Type") == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
+        excel_bytes = io.BytesIO(res.content)
+        xl = pd.ExcelFile(excel_bytes)
+        df = xl.parse(xl.sheet_names[0])
+        print(f"Fallback extracted {len(df)} lines of text.")
+        print("Pass")
+        return True
     print("Fail")
     return False
 
 def test_wrong_file_type():
-    print("\n--- Test 4: Wrong File Type ---")
+    print("\n--- Test 4: Wrong File Type & Magic Bytes Verification ---")
     
-    # 4a. docx
-    print("Testing docx...")
+    # 4a. invalid docx binary
+    print("Testing invalid docx...")
     with open("test_files/wrong_type.docx", "rb") as f:
         res1 = requests.post(f"{BASE_URL}/api/convert", files={"file": f})
-    print(f"docx -> Status: {res1.status_code}, Response: {res1.text}")
+    print(f"invalid docx -> Status: {res1.status_code}, Response: {res1.text}")
     
-    # 4b. png (Supported via OCR!)
-    print("Testing png...")
-    with open("test_files/wrong_type.png", "rb") as f:
-        res2 = requests.post(f"{BASE_URL}/api/convert", files={"file": f})
-    print(f"png -> Status: {res2.status_code}, Response: {res2.text}")
-    
-    # 4c. txt
+    # 4b. txt
     print("Testing txt...")
     with open("test_files/wrong_type.txt", "rb") as f:
         res3 = requests.post(f"{BASE_URL}/api/convert", files={"file": f})
     print(f"txt -> Status: {res3.status_code}, Response: {res3.text}")
     
-    # 4d. renamed txt to pdf (extension mismatch)
-    print("Testing renamed txt -> pdf...")
+    # 4c. renamed txt to pdf (magic byte mismatch)
+    print("Testing renamed txt -> pdf (magic bytes check)...")
     with open("test_files/mismatch_content.pdf", "rb") as f:
         res4 = requests.post(f"{BASE_URL}/api/convert", files={"file": f})
     print(f"renamed pdf -> Status: {res4.status_code}, Response: {res4.text}")
     
-    # Check all cases
     passed = True
-    if res1.status_code != 400 or "supported" not in res1.text:
-        print("Fail: docx not rejected with 400 + supported msg")
+    if res1.status_code != 400 or "Invalid DOCX" not in res1.text:
+        print("Fail: invalid docx not rejected with 400 + header check")
         passed = False
-    if res3.status_code != 400 or "supported" not in res3.text:
-        print("Fail: txt not rejected with 400 + supported msg")
+    if res3.status_code != 400 or "Supported formats" not in res3.text:
+        print("Fail: txt not rejected with 400 + supported format msg")
         passed = False
-    
-    # Let's see what happens to the mismatch PDF content
-    # If the extension is pdf, it passes the filename check, and tries to parse it.
-    # It might return a 500 error if pdfplumber crashes, or it might return 422 if it thinks there are no tables.
-    print(f"Mismatch PDF content status code: {res4.status_code}")
-    if res4.status_code == 500:
-        print("Notice: Mismatch PDF returned 500 (stack trace/internal server error).")
+    if res4.status_code != 400 or "standard PDF header" not in res4.text:
+        print("Fail: renamed pdf not caught by magic bytes verification")
+        passed = False
     
     if passed:
-        print("Pass (except potentially mismatch content 500 check)")
+        print("Pass: Magic bytes and unsupported extensions correctly blocked.")
     return passed
 
 def test_oversized_file():
@@ -322,6 +308,55 @@ def test_concurrent_requests():
         print("Fail (some requests failed)")
     return passed
 
+def test_preview_and_export():
+    print("\n--- Test 11: Preview & Export Flow ---")
+    file_path = "test_files/happy_path.pdf"
+    with open(file_path, "rb") as f:
+        res = requests.post(f"{BASE_URL}/api/preview", files={"file": f})
+    
+    print(f"Preview Status: {res.status_code}")
+    if res.status_code != 200:
+        print(f"Fail: Expected 200, got {res.status_code}")
+        return False
+        
+    data = res.json()
+    if data.get("status") != "ok" or not data.get("sheets"):
+        print("Fail: Invalid preview response format")
+        return False
+        
+    print(f"Preview Sheets Count: {len(data['sheets'])}")
+    
+    # Test Export XLSX
+    payload_xlsx = {
+        "filename": "happy_path",
+        "format": "xlsx",
+        "is_statement": data.get("is_statement", False),
+        "metadata": data.get("metadata", {}),
+        "sheets": data.get("sheets", [])
+    }
+    res_export_xlsx = requests.post(f"{BASE_URL}/api/export", json=payload_xlsx)
+    print(f"Export XLSX Status: {res_export_xlsx.status_code}")
+    if res_export_xlsx.status_code != 200:
+        print("Fail: Export XLSX failed")
+        return False
+        
+    # Test Export CSV
+    payload_csv = {
+        "filename": "happy_path",
+        "format": "csv",
+        "is_statement": data.get("is_statement", False),
+        "metadata": data.get("metadata", {}),
+        "sheets": data.get("sheets", [])
+    }
+    res_export_csv = requests.post(f"{BASE_URL}/api/export", json=payload_csv)
+    print(f"Export CSV Status: {res_export_csv.status_code}")
+    if res_export_csv.status_code != 200:
+        print("Fail: Export CSV failed")
+        return False
+        
+    print("Pass: Preview & Export Flow Verified")
+    return True
+
 if __name__ == "__main__":
     test_api_health()
     test_happy_path()
@@ -333,3 +368,5 @@ if __name__ == "__main__":
     test_messy_tables()
     test_cors()
     test_concurrent_requests()
+    test_preview_and_export()
+

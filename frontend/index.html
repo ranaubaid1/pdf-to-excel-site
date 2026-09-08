@@ -3,580 +3,817 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>STATEXCEL — PDF & Word to Excel Bank Statement Converter</title>
+<title>STATEXCEL — Bank Statement to Excel Converter</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
-  :root{
-    --bg: #0B0F17;
-    --surface: #131A26;
-    --surface-2: #1C2638;
-    --surface-3: #26334D;
-    --line: #2D3C56;
-    --line-light: #3D4F6F;
-    --text: #F0F4F8;
-    --text-dim: #94A3B8;
-    --accent: #38BDF8;
-    --accent-hover: #0EA5E9;
-    --accent-grad: linear-gradient(135deg, #38BDF8 0%, #6366F1 100%);
-    --gold: #F59E0B;
-    --success: #10B981;
-    --success-bg: rgba(16, 185, 129, 0.12);
-    --danger: #EF4444;
-    --danger-bg: rgba(239, 68, 68, 0.12);
-    --warn: #F59E0B;
-    --warn-bg: rgba(245, 158, 11, 0.15);
-    --radius: 12px;
-  }
-  *{box-sizing:border-box;margin:0;padding:0;}
-  body{
-    background:var(--bg);
-    color:var(--text);
-    font-family:'Inter',sans-serif;
-    min-height:100vh;
-    display:flex;
-    flex-direction:column;
-  }
-  .grid-overlay{
-    position:fixed; inset:0;
-    background-image:
-      linear-gradient(var(--line) 1px, transparent 1px),
-      linear-gradient(90deg, var(--line) 1px, transparent 1px);
-    background-size: 48px 48px;
-    opacity:0.08;
-    pointer-events:none;
-    z-index: 0;
-  }
-  header{
-    position:relative;
-    z-index: 10;
-    display:flex; align-items:center; justify-content:space-between;
-    padding: 20px 48px;
-    border-bottom:1px solid var(--line);
-    background: rgba(11, 15, 23, 0.85);
-    backdrop-filter: blur(12px);
-  }
-  .brand{
-    font-family:'Space Grotesk', sans-serif;
-    font-weight:700;
-    font-size:22px;
-    letter-spacing:-0.02em;
-    display:flex; align-items:center; gap:12px;
-  }
-  .brand .logo-icon{
-    width:28px; height:28px;
-    background:var(--accent-grad);
-    border-radius:6px;
-    display:flex; align-items:center; justify-content:center;
-    color:#fff; font-size:14px; font-weight:800;
-  }
-  .badge-saas{
-    font-family:'JetBrains Mono', monospace;
-    font-size:11px;
-    color:var(--accent);
-    background: rgba(56, 189, 248, 0.1);
-    border:1px solid rgba(56, 189, 248, 0.3);
-    padding:4px 10px;
-    border-radius:999px;
-  }
-  main{
-    max-width:1160px;
-    width:100%;
-    margin:0 auto;
-    padding: 48px 24px 80px;
-    position:relative;
-    z-index: 10;
-    flex:1;
-  }
-  .hero{
-    text-align:center;
-    margin-bottom:40px;
-  }
-  .hero .eyebrow{
-    font-family:'JetBrains Mono', monospace;
-    font-size:12px;
-    color:var(--accent);
-    letter-spacing:0.1em;
-    text-transform:uppercase;
-    margin-bottom:12px;
-    display:inline-block;
-  }
-  .hero h1{
-    font-family:'Space Grotesk', sans-serif;
-    font-size: clamp(32px, 4.5vw, 48px);
-    line-height:1.15;
-    letter-spacing:-0.03em;
-    margin-bottom:14px;
-  }
-  .hero h1 span{
-    background: var(--accent-grad);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-  }
-  .hero .sub{
-    color:var(--text-dim);
-    font-size:16px;
-    max-width:640px;
-    margin:0 auto;
-    line-height:1.6;
+  :root {
+    --bg: #F8FAFC;
+    --surface: #FFFFFF;
+    --surface-subtle: #F1F5F9;
+    --border: #E2E8F0;
+    --border-strong: #CBD5E1;
+    --text-main: #0F172A;
+    --text-muted: #475569;
+    --text-light: #64748B;
+    --primary: #2563EB;
+    --primary-hover: #1D4ED8;
+    --primary-light: #EFF6FF;
+    --success: #059669;
+    --success-bg: #ECFDF5;
+    --success-border: #A7F3D0;
+    --warning: #D97706;
+    --warning-bg: #FFFBEB;
+    --warning-border: #FDE68A;
+    --danger: #DC2626;
+    --danger-bg: #FEF2F2;
+    --danger-border: #FECACA;
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+    --shadow-sm: 0 1px 2px 0 rgba(15, 23, 42, 0.05);
+    --shadow-md: 0 4px 6px -1px rgba(15, 23, 42, 0.07), 0 2px 4px -2px rgba(15, 23, 42, 0.05);
+    --shadow-lg: 0 10px 15px -3px rgba(15, 23, 42, 0.08), 0 4px 6px -4px rgba(15, 23, 42, 0.04);
   }
 
-  /* UPLOAD PANEL */
-  .panel{
-    background:var(--surface);
-    border:1px solid var(--line);
-    border-radius: var(--radius);
-    overflow:hidden;
-    box-shadow: 0 20px 40px -15px rgba(0,0,0,0.5);
-  }
-  .panel-head{
-    display:flex; align-items:center; justify-content:space-between;
-    padding:14px 20px;
-    border-bottom:1px solid var(--line);
-    background:var(--surface-2);
-    font-family:'JetBrains Mono', monospace;
-    font-size:12px;
-    color:var(--text-dim);
-  }
-  .panel-head .dots{ display:flex; gap:6px; }
-  .panel-head .dot{ width:10px; height:10px; border-radius:50%; }
-  .dot.red{ background:#EF4444; }
-  .dot.yellow{ background:#F59E0B; }
-  .dot.green{ background:#10B981; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
 
-  #dropzone{
-    padding: 64px 32px;
-    text-align:center;
-    cursor:pointer;
-    transition: all 0.2s ease;
-    border: 2px dashed var(--line);
-    margin: 20px;
-    border-radius:8px;
-    background: rgba(28, 38, 56, 0.4);
+  body {
+    background: var(--bg);
+    color: var(--text-main);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    -webkit-font-smoothing: antialiased;
   }
-  #dropzone.drag{
-    border-color: var(--accent);
-    background: rgba(56, 189, 248, 0.08);
-  }
-  #dropzone .icon-box{
-    font-size:32px;
-    margin-bottom:16px;
-  }
-  #dropzone h3{
-    font-family:'Space Grotesk', sans-serif;
-    font-size:20px;
-    margin-bottom:6px;
-  }
-  #dropzone p{
-    color:var(--text-dim);
-    font-size:13px;
-  }
-  .formats-tag{
-    display:inline-block;
-    margin-top:14px;
-    font-family:'JetBrains Mono', monospace;
-    font-size:11px;
-    color:var(--accent);
-    background: rgba(56, 189, 248, 0.08);
-    border: 1px solid rgba(56, 189, 248, 0.2);
-    padding: 4px 12px;
-    border-radius:6px;
-  }
-  input[type=file]{ display:none; }
 
-  .filebar{
-    display:none;
-    align-items:center;
-    gap:14px;
-    margin: 0 20px 20px;
+  /* TOP NAVIGATION */
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 40px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    text-decoration: none;
+    color: var(--text-main);
+  }
+
+  .logo-icon {
+    width: 34px;
+    height: 34px;
+    background: linear-gradient(135deg, #1E40AF 0%, #2563EB 100%);
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #FFFFFF;
+    font-weight: 800;
+    font-size: 18px;
+    box-shadow: 0 2px 4px rgba(37, 99, 235, 0.3);
+  }
+
+  .brand-text {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .brand-title {
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--text-main);
+  }
+
+  .brand-sub {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-light);
+    letter-spacing: 0.02em;
+  }
+
+  .header-badges {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .badge {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 5px 12px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .badge-secure {
+    background: var(--success-bg);
+    color: var(--success);
+    border: 1px solid var(--success-border);
+  }
+
+  .badge-version {
+    background: var(--surface-subtle);
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+  }
+
+  /* MAIN CONTENT AREA */
+  main {
+    max-width: 1180px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 40px 24px 80px;
+    flex: 1;
+  }
+
+  /* HERO SECTION */
+  .hero {
+    text-align: center;
+    margin-bottom: 36px;
+  }
+
+  .hero-tagline {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--primary-light);
+    color: var(--primary);
+    font-size: 12px;
+    font-weight: 600;
+    padding: 6px 14px;
+    border-radius: 999px;
+    border: 1px solid rgba(37, 99, 235, 0.2);
+    margin-bottom: 14px;
+  }
+
+  .hero h1 {
+    font-size: clamp(28px, 4vw, 42px);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.2;
+    color: var(--text-main);
+    margin-bottom: 12px;
+  }
+
+  .hero h1 span {
+    color: var(--primary);
+  }
+
+  .hero p {
+    color: var(--text-muted);
+    font-size: 16px;
+    max-width: 680px;
+    margin: 0 auto;
+    line-height: 1.6;
+  }
+
+  /* MAIN CARD PANEL */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-md);
+    overflow: hidden;
+  }
+
+  /* DROPZONE */
+  .dropzone-container {
+    padding: 24px;
+  }
+
+  #dropzone {
+    border: 2px dashed var(--border-strong);
+    border-radius: var(--radius-md);
+    background: var(--bg);
+    padding: 56px 28px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+  }
+
+  #dropzone:hover, #dropzone.drag {
+    border-color: var(--primary);
+    background: var(--primary-light);
+  }
+
+  .dropzone-icon {
+    width: 52px;
+    height: 52px;
+    background: #FFFFFF;
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 16px;
+    box-shadow: var(--shadow-sm);
+    font-size: 24px;
+  }
+
+  #dropzone h3 {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-main);
+    margin-bottom: 6px;
+  }
+
+  #dropzone p {
+    color: var(--text-light);
+    font-size: 14px;
+    margin-bottom: 16px;
+  }
+
+  .formats-container {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .format-pill {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    font-size: 12px;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: var(--radius-sm);
+  }
+
+  input[type=file] { display: none; }
+
+  /* SELECTED FILE BAR */
+  .filebar {
+    display: none;
+    align-items: center;
+    justify-content: space-between;
+    margin: 0 24px 20px;
     padding: 14px 18px;
-    background: var(--surface-2);
-    border:1px solid var(--line);
-    border-radius:8px;
-    font-family:'JetBrains Mono', monospace;
-    font-size:13px;
+    background: var(--surface-subtle);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
   }
-  .filebar.show{ display:flex; }
-  .filebar .name{ flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:600; color:#fff; }
-  .filebar .size{ color:var(--text-dim); font-size:12px; }
-  .filebar button.clear{
-    background:none; border:none; color:var(--text-dim);
-    cursor:pointer; font-size:18px; line-height:1;
-  }
-  .filebar button.clear:hover{ color:var(--danger); }
 
-  .actions{
-    display:flex;
-    justify-content:flex-end;
-    gap:12px;
-    padding: 0 20px 20px;
+  .filebar.show { display: flex; }
+
+  .filebar-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
   }
-  .btn{
-    font-family:'Space Grotesk', sans-serif;
-    font-weight:600;
-    font-size:14px;
-    border:none;
-    padding: 12px 22px;
-    border-radius:8px;
-    cursor:pointer;
-    display:inline-flex; align-items:center; gap:8px;
+
+  .filebar-icon {
+    font-size: 22px;
+  }
+
+  .filebar-info {
+    min-width: 0;
+  }
+
+  .filebar-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-main);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .filebar-size {
+    font-size: 12px;
+    color: var(--text-light);
+  }
+
+  .btn-remove-file {
+    background: none;
+    border: none;
+    color: var(--text-light);
+    font-size: 18px;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: var(--radius-sm);
+    transition: all 0.15s;
+  }
+
+  .btn-remove-file:hover {
+    color: var(--danger);
+    background: var(--danger-bg);
+  }
+
+  /* PIPELINE TRACKER */
+  .pipeline-box {
+    display: none;
+    margin: 0 24px 20px;
+    padding: 20px;
+    background: var(--surface-subtle);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+  }
+
+  .pipeline-box.show { display: block; }
+
+  .pipeline-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-main);
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .pipeline-steps {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+  }
+
+  .step-item {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 10px;
+    text-align: center;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-light);
+    transition: all 0.2s;
+  }
+
+  .step-item.active {
+    border-color: var(--primary);
+    background: var(--primary-light);
+    color: var(--primary);
+    font-weight: 600;
+  }
+
+  .step-item.done {
+    border-color: var(--success-border);
+    background: var(--success-bg);
+    color: var(--success);
+    font-weight: 600;
+  }
+
+  /* STATUS BANNER */
+  .status-banner {
+    margin: 0 24px 20px;
+    padding: 14px 18px;
+    border-radius: var(--radius-md);
+    font-size: 14px;
+    font-weight: 500;
+    display: none;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .status-banner.show { display: flex; }
+  .status-banner.info { background: var(--primary-light); color: var(--primary); border: 1px solid rgba(37, 99, 235, 0.2); }
+  .status-banner.error { background: var(--danger-bg); color: var(--danger); border: 1px solid var(--danger-border); }
+  .status-banner.success { background: var(--success-bg); color: var(--success); border: 1px solid var(--success-border); }
+
+  /* ACTION BUTTONS */
+  .card-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    padding: 16px 24px;
+    background: var(--surface-subtle);
+    border-top: 1px solid var(--border);
+  }
+
+  .btn {
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    padding: 10px 20px;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid transparent;
     transition: all 0.15s ease;
   }
-  .btn-primary{
-    background: var(--accent-grad);
-    color: #fff;
-    box-shadow: 0 4px 14px rgba(56, 189, 248, 0.25);
+
+  .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none !important;
   }
-  .btn-primary:hover:not(:disabled){ transform: translateY(-1px); opacity:0.95; }
-  .btn-secondary{
-    background: var(--surface-2);
-    color: var(--text);
-    border:1px solid var(--line);
+
+  .btn-primary {
+    background: var(--primary);
+    color: #FFFFFF;
+    box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
   }
-  .btn-secondary:hover:not(:disabled){ background: var(--surface-3); border-color:var(--line-light); }
-  .btn-success{
+
+  .btn-primary:hover:not(:disabled) {
+    background: var(--primary-hover);
+  }
+
+  .btn-secondary {
+    background: var(--surface);
+    color: var(--text-main);
+    border-color: var(--border-strong);
+  }
+
+  .btn-secondary:hover:not(:disabled) {
+    background: var(--surface-subtle);
+  }
+
+  .btn-success {
     background: var(--success);
-    color:#fff;
-  }
-  .btn:disabled{ opacity:0.35; cursor:not-allowed; transform:none !important; }
-
-  /* PIPELINE PROGRESS BAR */
-  .pipeline{
-    display:none;
-    margin: 20px;
-    padding: 20px;
-    background: var(--surface-2);
-    border:1px solid var(--line);
-    border-radius:8px;
-  }
-  .pipeline.show{ display:block; }
-  .pipeline-steps{
-    display:grid; grid-template-columns: repeat(4, 1fr);
-    gap:12px; margin-top:12px;
-  }
-  .pipe-step{
-    padding:10px; border-radius:6px;
-    background: rgba(0,0,0,0.2);
-    border:1px solid var(--line);
-    font-family:'JetBrains Mono', monospace;
-    font-size:11px; color:var(--text-dim);
-    text-align:center;
-    transition: all 0.2s ease;
-  }
-  .pipe-step.active{
-    border-color: var(--accent);
-    color: var(--accent);
-    background: rgba(56, 189, 248, 0.1);
-    font-weight:600;
-  }
-  .pipe-step.done{
-    border-color: var(--success);
-    color: var(--success);
-    background: var(--success-bg);
+    color: #FFFFFF;
   }
 
-  /* SPREADSHEET EDITOR VIEW */
-  .editor-section{
-    display:none;
-    margin-top:32px;
+  .btn-success:hover:not(:disabled) {
+    background: #047857;
   }
-  .editor-section.show{ display:block; }
-  
-  /* METADATA CARDS */
-  .meta-dashboard{
-    display:grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap:12px;
-    margin-bottom:20px;
-  }
-  .meta-card{
-    background:var(--surface);
-    border:1px solid var(--line);
-    border-radius:8px;
-    padding:14px 16px;
-  }
-  .meta-card .label{
-    font-family:'JetBrains Mono', monospace;
-    font-size:11px;
-    color:var(--text-dim);
-    text-transform:uppercase;
-    margin-bottom:4px;
-  }
-  .meta-card .value{
-    font-family:'Space Grotesk', sans-serif;
-    font-size:16px;
-    font-weight:700;
-    color:#fff;
-    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
-  }
-  .meta-card .value.green{ color:var(--success); }
-  .meta-card .value.warn{ color:var(--warn); }
 
-  /* TOOLBAR */
-  .editor-toolbar{
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-    flex-wrap:wrap;
-    gap:12px;
-    padding:14px 18px;
-    background:var(--surface-2);
-    border:1px solid var(--line);
-    border-bottom:none;
-    border-top-left-radius:var(--radius);
-    border-top-right-radius:var(--radius);
+  /* SPREADSHEET EDITOR SECTION */
+  .editor-section {
+    display: none;
+    margin-top: 32px;
   }
-  .editor-toolbar .tools-left{ display:flex; gap:10px; align-items:center; }
-  .editor-toolbar .tools-right{ display:flex; gap:10px; align-items:center; }
 
-  /* DATA GRID */
-  .grid-container{
-    background:var(--surface);
-    border:1px solid var(--line);
-    border-bottom-left-radius:var(--radius);
-    border-bottom-right-radius:var(--radius);
-    overflow:auto;
-    max-height: 520px;
-  }
-  table.sheet-table{
-    width:100%;
-    border-collapse:collapse;
-    font-family:'Inter', sans-serif;
-    font-size:13px;
-  }
-  table.sheet-table th{
-    position:sticky; top:0;
-    background: #192333;
-    color: #fff;
-    font-family:'Space Grotesk', sans-serif;
-    font-weight:600;
-    padding:12px 14px;
-    text-align:left;
-    border-bottom:2px solid var(--line-light);
-    border-right:1px solid var(--line);
-    white-space:nowrap;
-    z-index: 5;
-  }
-  table.sheet-table td{
-    padding:10px 14px;
-    border-bottom:1px solid var(--line);
-    border-right:1px solid var(--line);
-    color:var(--text);
-  }
-  table.sheet-table tr:hover td{ background: rgba(255,255,255,0.02); }
-  table.sheet-table tr.flagged td{ background: var(--warn-bg); }
-  table.sheet-table td.cell-num{
-    text-align:right;
-    font-family:'JetBrains Mono', monospace;
-    font-weight:500;
-  }
-  table.sheet-table td.cell-center{ text-align:center; }
-  table.sheet-table td[contenteditable="true"]{
-    outline:none;
-    cursor:text;
-    transition: background 0.15s ease;
-  }
-  table.sheet-table td[contenteditable="true"]:focus{
-    background: rgba(56, 189, 248, 0.15);
-    box-shadow: inset 0 0 0 2px var(--accent);
-  }
-  .badge-stat{
-    display:inline-block;
-    padding:2px 8px;
-    border-radius:4px;
-    font-size:11px;
-    font-family:'JetBrains Mono', monospace;
-    font-weight:600;
-  }
-  .badge-stat.pass{ background:var(--success-bg); color:var(--success); border:1px solid rgba(16,185,129,0.3); }
-  .badge-stat.warn{ background:var(--warn-bg); color:var(--warn); border:1px solid rgba(245,158,11,0.3); }
-  .btn-del-row{
-    background:none; border:none; color:var(--text-dim); cursor:pointer; font-size:14px;
-  }
-  .btn-del-row:hover{ color:var(--danger); }
+  .editor-section.show { display: block; }
 
-  /* STATUS MESSAGE */
-  .status{
-    margin: 20px 20px 0;
-    font-family:'JetBrains Mono', monospace;
-    font-size:13px;
-    padding: 12px 16px;
-    border-radius:8px;
-    display:none;
+  /* METADATA DASHBOARD */
+  .meta-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+    margin-bottom: 20px;
   }
-  .status.show{ display:block; }
-  .status.info{ background: rgba(56,189,248,0.08); color:var(--accent); border:1px solid rgba(56,189,248,0.3); }
-  .status.error{ background: var(--danger-bg); color:var(--danger); border:1px solid rgba(239,68,68,0.3); }
-  .status.success{ background: var(--success-bg); color:var(--success); border:1px solid rgba(16,185,129,0.3); }
 
-  /* PASSWORD MODAL */
-  .modal-backdrop{
-    display:none;
-    position:fixed; inset:0;
-    background: rgba(0,0,0,0.75);
-    backdrop-filter: blur(8px);
+  .meta-stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 14px 16px;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .meta-stat-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-light);
+    margin-bottom: 4px;
+  }
+
+  .meta-stat-value {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text-main);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .meta-stat-value.green { color: var(--success); }
+  .meta-stat-value.warn { color: var(--warning); }
+
+  /* EDITOR TOOLBAR */
+  .grid-toolbar {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-bottom: none;
+    border-top-left-radius: var(--radius-lg);
+    border-top-right-radius: var(--radius-lg);
+    padding: 14px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .toolbar-left, .toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  /* TABLE CONTAINER */
+  .table-responsive {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-bottom-left-radius: var(--radius-lg);
+    border-bottom-right-radius: var(--radius-lg);
+    overflow: auto;
+    max-height: 560px;
+    box-shadow: var(--shadow-md);
+  }
+
+  table.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    text-align: left;
+  }
+
+  table.data-table th {
+    position: sticky;
+    top: 0;
+    background: var(--surface-subtle);
+    color: var(--text-main);
+    font-weight: 700;
+    padding: 12px 14px;
+    border-bottom: 2px solid var(--border-strong);
+    border-right: 1px solid var(--border);
+    white-space: nowrap;
+    z-index: 10;
+  }
+
+  table.data-table td {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+    color: var(--text-main);
+    background: #FFFFFF;
+  }
+
+  table.data-table tr:hover td {
+    background: #F8FAFC;
+  }
+
+  table.data-table td.cell-num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    font-weight: 500;
+  }
+
+  table.data-table td.cell-center {
+    text-align: center;
+  }
+
+  table.data-table td[contenteditable="true"] {
+    outline: none;
+    cursor: text;
+  }
+
+  table.data-table td[contenteditable="true"]:focus {
+    background: var(--primary-light);
+    box-shadow: inset 0 0 0 2px var(--primary);
+  }
+
+  .badge-stat {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  .badge-stat.pass { background: var(--success-bg); color: var(--success); border: 1px solid var(--success-border); }
+  .badge-stat.warn { background: var(--warning-bg); color: var(--warning); border: 1px solid var(--warning-border); }
+
+  .btn-delete-row {
+    background: none;
+    border: none;
+    color: var(--text-light);
+    cursor: pointer;
+    font-size: 14px;
+    padding: 4px 6px;
+    border-radius: var(--radius-sm);
+  }
+
+  .btn-delete-row:hover {
+    color: var(--danger);
+    background: var(--danger-bg);
+  }
+
+  /* MODAL */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.6);
+    backdrop-filter: blur(4px);
     z-index: 100;
-    align-items:center; justify-content:center;
+    align-items: center;
+    justify-content: center;
   }
-  .modal-backdrop.show{ display:flex; }
-  .modal{
-    background:var(--surface);
-    border:1px solid var(--line);
-    border-radius:var(--radius);
-    padding:32px;
-    max-width:440px;
-    width:90%;
-    box-shadow: 0 25px 50px -12px rgba(0,0,0,0.7);
+
+  .modal-overlay.show { display: flex; }
+
+  .modal-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    padding: 32px;
+    max-width: 440px;
+    width: 90%;
   }
-  .modal h3{ font-family:'Space Grotesk', sans-serif; font-size:20px; margin-bottom:8px; }
-  .modal p{ font-size:13px; color:var(--text-dim); margin-bottom:20px; line-height:1.5; }
-  .modal input{
-    width:100%;
-    padding:12px 14px;
-    background:var(--surface-2);
-    border:1px solid var(--line);
-    border-radius:8px;
-    color:#fff;
-    font-family:'Inter', sans-serif;
-    font-size:14px;
-    margin-bottom:20px;
+
+  .modal-card h3 {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text-main);
+    margin-bottom: 8px;
   }
-  .modal input:focus{ outline:none; border-color:var(--accent); }
-  .modal .modal-actions{ display:flex; justify-content:flex-end; gap:10px; }
+
+  .modal-card p {
+    font-size: 14px;
+    color: var(--text-muted);
+    margin-bottom: 20px;
+    line-height: 1.5;
+  }
+
+  .modal-input {
+    width: 100%;
+    padding: 12px 14px;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-md);
+    font-family: inherit;
+    font-size: 14px;
+    margin-bottom: 24px;
+  }
+
+  .modal-input:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+  }
+
+  .modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+  }
 
   /* FOOTER */
-  footer{
-    text-align:center;
-    color:var(--text-dim);
-    font-size:12px;
-    font-family:'Inter', sans-serif;
-    padding: 32px 24px;
-    border-top:1px solid var(--line);
-    background: var(--bg);
-    line-height:1.8;
+  footer {
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    padding: 28px 24px;
+    text-align: center;
+    color: var(--text-light);
+    font-size: 13px;
+    line-height: 1.7;
+    margin-top: auto;
   }
-  footer .sec-note{ color:var(--accent); font-family:'JetBrains Mono', monospace; font-size:11px; }
 
-  @media(max-width:768px){
-    header{ padding:16px 20px; }
-    .pipeline-steps{ grid-template-columns:1fr 1fr; }
-    .editor-toolbar{ flex-direction:column; align-items:stretch; }
+  .footer-security {
+    color: var(--success);
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+
+  @media (max-width: 768px) {
+    header { padding: 14px 20px; }
+    .pipeline-steps { grid-template-columns: 1fr 1fr; }
+    .grid-toolbar { flex-direction: column; align-items: stretch; }
+    .card-actions { flex-direction: column; }
+    .card-actions .btn { width: 100%; justify-content: center; }
   }
 </style>
 </head>
 <body>
-<div class="grid-overlay"></div>
 
 <header>
-  <div class="brand">
+  <a href="/" class="brand">
     <div class="logo-icon">S</div>
-    STATEXCEL
+    <div class="brand-text">
+      <span class="brand-title">STATEXCEL</span>
+      <span class="brand-sub">Bank Statement Converter</span>
+    </div>
+  </a>
+  <div class="header-badges">
+    <span class="badge badge-secure">🔒 In-Memory Processing</span>
+    <span class="badge badge-version">v2.0 Pro</span>
   </div>
-  <div class="badge-saas">PDF / DOCX ➔ EXCEL</div>
 </header>
 
 <main>
   <div class="hero">
-    <div class="eyebrow">// BANK STATEMENT RECONCILIATION & CONVERTER</div>
-    <h1>Convert Bank Statements into<br><span>Clean, Verified Spreadsheets.</span></h1>
-    <p class="sub">Upload PDF (native or scanned), Word (.docx), or Images. Preview, edit cells in-browser, reconcile running totals, and download formatted Excel or CSV.</p>
+    <div class="hero-tagline">
+      <span>⚡ High-Precision Financial Data Extraction</span>
+    </div>
+    <h1>Bank Statements to Excel<br><span>with 100% Transaction Integrity</span></h1>
+    <p>Converts native and scanned PDF bank statements, Word (.docx) documents, and images into clean, structured Excel workbooks. Includes in-browser grid editing and balance verification.</p>
   </div>
 
-  <!-- UPLOAD PANEL -->
-  <div class="panel" id="uploadPanel">
-    <div class="panel-head">
-      <div class="dots">
-        <span class="dot red"></span>
-        <span class="dot yellow"></span>
-        <span class="dot green"></span>
+  <!-- UPLOAD CARD -->
+  <div class="card" id="uploadPanel">
+    <div class="dropzone-container">
+      <div id="dropzone">
+        <div class="dropzone-icon">📥</div>
+        <h3>Select or drag bank statements here</h3>
+        <p>Supports single or multi-page statements up to 20MB</p>
+        <div class="formats-container">
+          <span class="format-pill">PDF (Native &amp; Scanned)</span>
+          <span class="format-pill">Word (.docx)</span>
+          <span class="format-pill">PNG / JPG / WEBP</span>
+          <span class="format-pill">🔒 Password-Protected PDFs</span>
+        </div>
+        <input type="file" id="fileInput" accept=".pdf,.docx,.doc,.png,.jpg,.jpeg,.webp,.bmp" multiple />
       </div>
-      <span>STATEXCEL Engine v2.0</span>
-      <span>In-Memory Encrypted</span>
     </div>
 
-    <div id="dropzone">
-      <div class="icon-box">📄</div>
-      <h3>Drop your Bank Statement here</h3>
-      <p>or click to browse — supports single or multiple files up to 25MB</p>
-      <div class="formats-tag">.PDF (Text & Scanned) &bull; .DOCX &bull; .PNG &bull; .JPG</div>
-      <input type="file" id="fileInput" accept=".pdf,.docx,.doc,.png,.jpg,.jpeg,.webp,.bmp" multiple />
-    </div>
-
+    <!-- FILE SELECTED BAR -->
     <div class="filebar" id="filebar">
-      <span class="name" id="fileName"></span>
-      <span class="size" id="fileSize"></span>
-      <button class="clear" id="clearFile" title="Remove file">&times;</button>
+      <div class="filebar-left">
+        <div class="filebar-icon">📄</div>
+        <div class="filebar-info">
+          <div class="filebar-name" id="fileName">document.pdf</div>
+          <div class="filebar-size" id="fileSize">0 KB</div>
+        </div>
+      </div>
+      <button class="btn-remove-file" id="clearFile" title="Remove file">&times;</button>
     </div>
 
-    <!-- PIPELINE PROGRESS -->
-    <div class="pipeline" id="pipeline">
-      <div style="font-family:'Space Grotesk', sans-serif; font-size:14px; font-weight:600; color:#fff;" id="pipeStatus">Processing document…</div>
+    <!-- PIPELINE PROGRESS TRACKER -->
+    <div class="pipeline-box" id="pipeline">
+      <div class="pipeline-title" id="pipeStatus">Processing statement…</div>
       <div class="pipeline-steps">
-        <div class="pipe-step active" id="step1">1. Reading File</div>
-        <div class="pipe-step" id="step2">2. Detecting Layout</div>
-        <div class="pipe-step" id="step3">3. Extracting Rows</div>
-        <div class="pipe-step" id="step4">4. Reconciling Math</div>
+        <div class="step-item active" id="step1">1. Reading File</div>
+        <div class="step-item" id="step2">2. Detecting Layout</div>
+        <div class="step-item" id="step3">3. Extracting Rows</div>
+        <div class="step-item" id="step4">4. Reconciling Math</div>
       </div>
     </div>
 
-    <div class="status" id="status"></div>
+    <!-- STATUS BANNER -->
+    <div class="status-banner" id="status"></div>
 
-    <div class="actions" id="actionButtons">
-      <button class="btn btn-secondary" id="quickConvertBtn" disabled>⚡ Quick Download (.xlsx)</button>
-      <button class="btn btn-primary" id="previewBtn" disabled>🚀 Convert &amp; Edit in Browser</button>
+    <!-- ACTIONS -->
+    <div class="card-actions">
+      <button class="btn btn-secondary" id="quickConvertBtn" disabled>⚡ Direct Download (.xlsx)</button>
+      <button class="btn btn-primary" id="previewBtn" disabled>📊 Preview &amp; Edit in Grid</button>
     </div>
   </div>
 
-  <!-- SPREADSHEET EDITOR VIEW -->
+  <!-- SPREADSHEET GRID EDITOR -->
   <div class="editor-section" id="editorSection">
-    <!-- METADATA DASHBOARD -->
-    <div class="meta-dashboard" id="metaDashboard">
-      <div class="meta-card">
-        <div class="label">Bank Name</div>
-        <div class="value" id="cardBank">Bank</div>
+    <!-- METADATA KPI CARDS -->
+    <div class="meta-grid" id="metaDashboard">
+      <div class="meta-stat-card">
+        <div class="meta-stat-label">Institution</div>
+        <div class="meta-stat-value" id="cardBank">Bank</div>
       </div>
-      <div class="meta-card">
-        <div class="label">Account Title</div>
-        <div class="value" id="cardTitle">—</div>
+      <div class="meta-stat-card">
+        <div class="meta-stat-label">Account Title</div>
+        <div class="meta-stat-value" id="cardTitle">—</div>
       </div>
-      <div class="meta-card">
-        <div class="label">Account Number</div>
-        <div class="value" id="cardAcc">—</div>
+      <div class="meta-stat-card">
+        <div class="meta-stat-label">Account Number</div>
+        <div class="meta-stat-value" id="cardAcc">—</div>
       </div>
-      <div class="meta-card">
-        <div class="label">Total Transactions</div>
-        <div class="value" id="cardTotalRows">0</div>
+      <div class="meta-stat-card">
+        <div class="meta-stat-label">Transactions</div>
+        <div class="meta-stat-value" id="cardTotalRows">0</div>
       </div>
-      <div class="meta-card">
-        <div class="label">Total Credits</div>
-        <div class="value green" id="cardTotalCredit">0.00</div>
+      <div class="meta-stat-card">
+        <div class="meta-stat-label">Total Deposits / Credits</div>
+        <div class="meta-stat-value green" id="cardTotalCredit">0.00</div>
       </div>
-      <div class="meta-card">
-        <div class="label">Total Debits</div>
-        <div class="value" id="cardTotalDebit">0.00</div>
+      <div class="meta-stat-card">
+        <div class="meta-stat-label">Total Withdrawals / Debits</div>
+        <div class="meta-stat-value" id="cardTotalDebit">0.00</div>
       </div>
-      <div class="meta-card">
-        <div class="label">Reconciliation</div>
-        <div class="value green" id="cardRecStatus">✅ Verified</div>
+      <div class="meta-stat-card">
+        <div class="meta-stat-label">Balance Audit</div>
+        <div class="meta-stat-value green" id="cardRecStatus">✅ Verified</div>
       </div>
     </div>
 
-    <!-- EDITOR TOOLBAR -->
-    <div class="editor-toolbar">
-      <div class="tools-left">
+    <!-- GRID TOOLBAR -->
+    <div class="grid-toolbar">
+      <div class="toolbar-left">
         <button class="btn btn-secondary" id="swapColsBtn" title="Swap Debit and Credit columns">🔄 Swap Debit ⮂ Credit</button>
         <button class="btn btn-secondary" id="addRowBtn">➕ Add Row</button>
-        <button class="btn btn-secondary" id="resetEditorBtn">↩ Upload New</button>
+        <button class="btn btn-secondary" id="resetEditorBtn">↩ Upload New File</button>
       </div>
-      <div class="tools-right">
-        <button class="btn btn-secondary" id="exportCsvBtn">📄 Export CSV</button>
-        <button class="btn btn-primary" id="exportXlsxBtn">📊 Export Excel (.xlsx)</button>
+      <div class="toolbar-right">
+        <button class="btn btn-secondary" id="exportCsvBtn">📄 Download CSV</button>
+        <button class="btn btn-success" id="exportXlsxBtn">📊 Download Excel (.xlsx)</button>
       </div>
     </div>
 
-    <!-- DATA GRID -->
-    <div class="grid-container">
-      <table class="sheet-table" id="sheetTable">
+    <!-- DATA TABLE -->
+    <div class="table-responsive">
+      <table class="data-table" id="sheetTable">
         <thead id="tableHead"></thead>
         <tbody id="tableBody"></tbody>
       </table>
@@ -585,25 +822,28 @@
 </main>
 
 <!-- PASSWORD MODAL -->
-<div class="modal-backdrop" id="pwdModal">
-  <div class="modal">
+<div class="modal-overlay" id="pwdModal">
+  <div class="modal-card">
     <h3>🔒 Password-Protected PDF</h3>
-    <p>This PDF document is encrypted. Please enter the password to decrypt and convert transactions.</p>
-    <input type="password" id="pdfPassword" placeholder="Enter PDF password…" />
+    <p>This statement is encrypted. Please enter the password provided by your financial institution to unlock the transactions.</p>
+    <input type="password" class="modal-input" id="pdfPassword" placeholder="Enter PDF password…" />
     <div class="modal-actions">
       <button class="btn btn-secondary" id="cancelPwdBtn">Cancel</button>
-      <button class="btn btn-primary" id="submitPwdBtn">Unlock &amp; Convert</button>
+      <button class="btn btn-primary" id="submitPwdBtn">Unlock &amp; Parse</button>
     </div>
   </div>
 </div>
 
 <footer>
-  <p class="sec-note">🔒 BANK-GRADE SECURITY: Files are processed in-memory and auto-deleted immediately. We never store your financial statements.</p>
-  <p>STATEXCEL is a document formatting utility and does not provide financial or tax advice &bull; Made for accountants, businesses, &amp; developers.</p>
+  <p class="footer-security">🔒 Bank-Grade In-Memory Security: Files are never saved to disk or permanent databases.</p>
+  <p>STATEXCEL v2.0 &bull; Engineered for Accountants, Financial Analysts, Bookkeepers, and Business Owners.</p>
 </footer>
 
 <script>
-  const API_BASE = "http://localhost:5000";
+  // Environment-aware API Base URL
+  const API_BASE = window.location.origin && window.location.origin !== "null" && !window.location.origin.startsWith("file://")
+    ? window.location.origin
+    : "http://localhost:5000";
 
   const dropzone = document.getElementById('dropzone');
   const fileInput = document.getElementById('fileInput');
@@ -635,7 +875,7 @@
   const exportXlsxBtn = document.getElementById('exportXlsxBtn');
   const exportCsvBtn = document.getElementById('exportCsvBtn');
 
-  // Metadata Card Elements
+  // Metadata Elements
   const cardBank = document.getElementById('cardBank');
   const cardTitle = document.getElementById('cardTitle');
   const cardAcc = document.getElementById('cardAcc');
@@ -645,7 +885,7 @@
   const cardRecStatus = document.getElementById('cardRecStatus');
 
   let selectedFiles = [];
-  let currentPayload = null; // Store JSON returned from /api/preview
+  let currentPayload = null;
 
   function formatSize(bytes){
     if (bytes < 1024) return bytes + " B";
@@ -663,7 +903,7 @@
 
     if (validFiles.length === 0){
       clearSelectedFiles();
-      showStatus("error", "Supported formats: .pdf, .docx, .png, .jpg, .jpeg, .webp, .bmp");
+      showStatus("error", "Please select a supported file format (.pdf, .docx, .png, .jpg, .webp, .bmp)");
       return;
     }
 
@@ -693,11 +933,11 @@
   }
 
   function showStatus(type, msg){
-    statusEl.className = "status show " + type;
+    statusEl.className = "status-banner show " + type;
     statusEl.textContent = msg;
   }
   function hideStatus(){
-    statusEl.className = "status";
+    statusEl.className = "status-banner";
     statusEl.textContent = "";
   }
 
@@ -706,7 +946,7 @@
     pipeStatus.textContent = msg;
     for(let i=1; i<=4; i++){
       const el = document.getElementById(`step${i}`);
-      el.className = "pipe-step";
+      el.className = "step-item";
       if (i < stepIdx) el.classList.add('done');
       else if (i === stepIdx) el.classList.add('active');
     }
@@ -741,7 +981,7 @@
     clearSelectedFiles();
   });
 
-  // QUICK 1-CLICK CONVERT
+  // QUICK DIRECT CONVERT
   quickConvertBtn.addEventListener('click', () => doConvert(null));
 
   // PREVIEW & EDIT IN BROWSER
@@ -753,14 +993,14 @@
     quickConvertBtn.disabled = true;
     hideStatus();
 
-    setPipelineStep(1, "Reading uploaded document…");
+    setPipelineStep(1, "Ingesting document structure…");
 
     const formData = new FormData();
     selectedFiles.forEach(f => formData.append("file", f));
     if (password) formData.append("password", password);
 
-    setTimeout(() => setPipelineStep(2, "Detecting table layout & coordinates…"), 400);
-    setTimeout(() => setPipelineStep(3, "Extracting transaction entries…"), 800);
+    setTimeout(() => setPipelineStep(2, "Detecting bank layout & table headers…"), 600);
+    setTimeout(() => setPipelineStep(3, "Extracting transactions with high precision…"), 1400);
 
     try {
       const res = await fetch(`${API_BASE}/api/preview`, {
@@ -782,17 +1022,18 @@
       }
 
       if (!res.ok){
-        const err = await res.json().catch(() => ({error: "Conversion failed."}));
-        throw new Error(err.error || "Conversion failed.");
+        const err = await res.json().catch(() => ({error: "Failed to parse document."}));
+        throw new Error(err.error || "Failed to parse document.");
       }
 
-      setPipelineStep(4, "Validating running balance reconciliation…");
+      setPipelineStep(4, "Reconciling running balance…");
       const data = await res.json();
-      currentPayload = data;
 
       setTimeout(() => {
         hidePipeline();
+        currentPayload = data;
         renderSpreadsheetEditor(data);
+        showStatus("success", `Successfully extracted ${data.sheets[0].rows.length} transactions from ${data.filename}!`);
       }, 400);
 
     } catch (err) {
@@ -807,7 +1048,7 @@
     if (!selectedFiles || selectedFiles.length === 0) return;
     previewBtn.disabled = true;
     quickConvertBtn.disabled = true;
-    showStatus("info", "Processing conversion and downloading Excel…");
+    showStatus("info", "Generating formatted Excel workbook…");
 
     const formData = new FormData();
     selectedFiles.forEach(f => formData.append("file", f));
@@ -847,7 +1088,7 @@
       a.remove();
       window.URL.revokeObjectURL(url);
 
-      showStatus("success", "Done — your verified Excel workbook has downloaded!");
+      showStatus("success", "Your verified Excel workbook has downloaded!");
     } catch (err) {
       showStatus("error", err.message || "Conversion failed.");
     } finally {
@@ -894,10 +1135,8 @@
     tableBody.innerHTML = "";
     sheet.rows.forEach((row, rIdx) => {
       const tr = document.createElement('tr');
-      const isWarn = row.some(cell => String(cell).includes("Review Required"));
-      if (isWarn) tr.classList.add('flagged');
-
-      let tdCells = `<td>${rIdx + 1}</td>`;
+      let tdCells = `<td class="cell-center" style="font-weight:600; color:var(--text-light);">${rIdx + 1}</td>`;
+      
       row.forEach((cellVal, cIdx) => {
         let isNum = false;
         let isCenter = false;
@@ -915,7 +1154,7 @@
         }
       });
 
-      tdCells += `<td class="cell-center"><button class="btn-del-row" data-row="${rIdx}" title="Delete Row">🗑️</button></td>`;
+      tdCells += `<td class="cell-center"><button class="btn-delete-row" data-row="${rIdx}" title="Delete Row">🗑️</button></td>`;
       tr.innerHTML = tdCells;
       tableBody.appendChild(tr);
     });
@@ -933,7 +1172,7 @@
     });
 
     // Attach Row Delete Listeners
-    tableBody.querySelectorAll('.btn-del-row').forEach(btn => {
+    tableBody.querySelectorAll('.btn-delete-row').forEach(btn => {
       btn.addEventListener('click', (e) => {
         const r = parseInt(e.target.getAttribute('data-row'));
         if (currentPayload && currentPayload.sheets[0]){
@@ -949,7 +1188,7 @@
     if (!currentPayload || !currentPayload.sheets[0]) return;
     const sheet = currentPayload.sheets[0];
     const rows = sheet.rows;
-    cardTotalRows.textContent = `${rows.length} Rows`;
+    cardTotalRows.textContent = `${rows.length}`;
 
     let totCredit = 0.0;
     let totDebit = 0.0;
@@ -974,10 +1213,10 @@
     cardTotalDebit.textContent = totDebit.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
     
     if (warnCount === 0) {
-      cardRecStatus.className = "value green";
+      cardRecStatus.className = "meta-stat-value green";
       cardRecStatus.textContent = "✅ 100% Verified";
     } else {
-      cardRecStatus.className = "value warn";
+      cardRecStatus.className = "meta-stat-value warn";
       cardRecStatus.textContent = `⚠️ ${warnCount} Need Review`;
     }
   }
@@ -990,12 +1229,10 @@
     const debIdx = sheet.columns.findIndex(c => c.toLowerCase().includes("debit"));
 
     if (credIdx !== -1 && debIdx !== -1){
-      // Swap columns in header
       const tmp = sheet.columns[credIdx];
       sheet.columns[credIdx] = sheet.columns[debIdx];
       sheet.columns[debIdx] = tmp;
 
-      // Swap in all rows
       sheet.rows.forEach(r => {
         const tVal = r[credIdx];
         r[credIdx] = r[debIdx];

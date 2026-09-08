@@ -40,19 +40,98 @@ try:
 except ImportError:
     pypdf = None
 
+try:
+    from flask_limiter import Limiter
+    from flask_limiter.util import get_remote_address
+except ImportError:
+    Limiter = None
+    get_remote_address = None
+
 # Configure Tesseract binary path on Windows
 tess_path = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 if os.path.exists(tess_path):
     pytesseract.pytesseract.tesseract_cmd = tess_path
 
 app = Flask(__name__)
-CORS(app)
 
-MAX_FILE_SIZE_MB = 25
+# Configurable CORS
+allowed_origins_env = os.environ.get("ALLOWED_ORIGINS", "*")
+if allowed_origins_env == "*":
+    CORS(app, resources={r"/api/*": {"origins": "*"}})
+else:
+    origins = [o.strip() for o in allowed_origins_env.split(",") if o.strip()]
+    CORS(app, resources={r"/api/*": {"origins": origins}})
+
+# Rate Limiter
+if Limiter and get_remote_address:
+    limiter = Limiter(
+        get_remote_address,
+        app=app,
+        default_limits=["300 per day", "60 per hour"],
+        storage_uri="memory://",
+    )
+else:
+    class DummyLimiter:
+        def limit(self, *args, **kwargs):
+            return lambda f: f
+    limiter = DummyLimiter()
+
+MAX_FILE_SIZE_MB = 20
 app.config["MAX_CONTENT_LENGTH"] = MAX_FILE_SIZE_MB * 1024 * 1024
 
 IMAGE_EXTENSIONS = ('.png', '.jpg', '.jpeg', '.webp', '.bmp', '.tiff')
 DOCX_EXTENSIONS = ('.docx', '.doc')
+
+
+def _verify_file_magic_bytes(file_bytes, filename):
+    """
+    Validates file headers (magic bytes) to ensure uploaded content matches
+    declared file extension and prevents renamed binaries.
+    """
+    if not file_bytes:
+        return False, "File is empty (0 bytes)."
+    
+    fn_lower = filename.lower()
+    
+    # PDF check: %PDF-
+    if fn_lower.endswith(".pdf"):
+        if not file_bytes.startswith(b"%PDF-"):
+            return False, "Invalid PDF: File does not contain standard PDF header (%PDF-)."
+        return True, None
+        
+    # Word DOCX / DOC
+    if fn_lower.endswith(".docx"):
+        if not file_bytes.startswith(b"PK\x03\x04"):
+            return False, "Invalid DOCX: File is not a valid Word (.docx) document package."
+        return True, None
+    elif fn_lower.endswith(".doc"):
+        if not file_bytes.startswith(b"\xd0\xcf\x11\xe0"):
+            return False, "Invalid DOC: File is not a valid Word (.doc) legacy binary format."
+        return True, None
+        
+    # Image checks
+    if fn_lower.endswith(".png"):
+        if not file_bytes.startswith(b"\x89PNG\r\n\x1a\n"):
+            return False, "Invalid PNG image header."
+        return True, None
+    elif fn_lower.endswith((".jpg", ".jpeg")):
+        if not file_bytes.startswith(b"\xff\xd8\xff"):
+            return False, "Invalid JPEG image header."
+        return True, None
+    elif fn_lower.endswith(".webp"):
+        if len(file_bytes) < 12 or not (file_bytes.startswith(b"RIFF") and file_bytes[8:12] == b"WEBP"):
+            return False, "Invalid WEBP image header."
+        return True, None
+    elif fn_lower.endswith(".bmp"):
+        if not file_bytes.startswith(b"BM"):
+            return False, "Invalid BMP image header."
+        return True, None
+    elif fn_lower.endswith((".tiff", ".tif")):
+        if not (file_bytes.startswith(b"II*\x00") or file_bytes.startswith(b"MM\x00*")):
+            return False, "Invalid TIFF image header."
+        return True, None
+
+    return False, f"Unsupported file type: {filename}"
 
 
 class NamedBytesIO(io.BytesIO):
@@ -60,6 +139,7 @@ class NamedBytesIO(io.BytesIO):
     def __init__(self, initial_bytes=b"", filename="page.png"):
         super().__init__(initial_bytes)
         self.filename = filename
+
 
 
 def _clean_header(header):
@@ -979,10 +1059,19 @@ def index():
 
 @app.route("/api/health", methods=["GET"])
 def health():
-    return jsonify({"status": "ok", "app": "STATEXCEL", "version": "2.0.0"})
+    return jsonify({
+        "status": "healthy",
+        "app": "STATEXCEL",
+        "version": "2.0.0",
+        "tesseract": os.path.exists(tess_path) or bool(getattr(pytesseract.pytesseract, "tesseract_cmd", None)),
+        "docx_support": docx is not None,
+        "pypdf_support": pypdf is not None,
+        "rate_limiting": Limiter is not None
+    }), 200
 
 
 @app.route("/api/preview", methods=["POST"])
+@limiter.limit("30 per minute")
 def preview_file():
     """
     Parses uploaded file (with optional password) and returns JSON metadata,
@@ -1006,6 +1095,12 @@ def preview_file():
 
     try:
         file_bytes = first_file.read()
+        
+        # Verify magic bytes header
+        is_valid, err_msg = _verify_file_magic_bytes(file_bytes, first_file.filename)
+        if not is_valid:
+            return jsonify({"error": err_msg}), 400
+
         file_stream = io.BytesIO(file_bytes)
 
         if fn_lower.endswith(".pdf"):
@@ -1075,103 +1170,114 @@ def preview_file():
             "sheets": sheets_payload
         })
 
+    except (pdfplumber.pdfminer.pdfparser.PDFSyntaxError, pypdf.errors.PdfReadError) if (pypdf and hasattr(pypdf, 'errors')) else (pdfplumber.pdfminer.pdfparser.PDFSyntaxError,) as exc:
+        return jsonify({"error": f"Invalid or corrupted PDF file: {str(exc)}"}), 400
     except Exception as exc:
+        if "EOF" in str(exc) or "syntax" in str(exc).lower() or "damaged" in str(exc).lower():
+            return jsonify({"error": f"Corrupted or unreadable PDF: {str(exc)}"}), 400
         return jsonify({"error": f"Preview failed: {str(exc)}"}), 500
 
 
+
 @app.route("/api/export", methods=["POST"])
+@limiter.limit("60 per minute")
 def export_file():
     """
     Receives JSON payload from in-browser spreadsheet editor and generates
     downloadable styled .xlsx or .csv.
     """
-    payload = request.get_json()
-    if not payload:
-        return jsonify({"error": "Invalid export payload."}), 400
+    try:
+        payload = request.get_json(silent=True)
+        if not payload:
+            return jsonify({"error": "Invalid export payload: Expected JSON body."}), 400
 
-    export_format = payload.get("format", "xlsx").lower()
-    filename = payload.get("filename", "statement")
-    is_statement = payload.get("is_statement", False)
-    metadata = payload.get("metadata", {})
-    sheets = payload.get("sheets", [])
+        export_format = payload.get("format", "xlsx").lower()
+        filename = payload.get("filename", "statement")
+        is_statement = payload.get("is_statement", False)
+        metadata = payload.get("metadata", {})
+        sheets = payload.get("sheets", [])
 
-    if not sheets:
-        return jsonify({"error": "No sheets to export."}), 400
+        if not sheets:
+            return jsonify({"error": "No sheets to export."}), 400
 
-    dataframes = []
-    for s in sheets:
-        sheet_name = s.get("name", "Sheet1")
-        cols = s.get("columns", [])
-        rows = s.get("rows", [])
+        dataframes = []
+        for s in sheets:
+            sheet_name = s.get("name", "Sheet1")
+            cols = s.get("columns", [])
+            rows = s.get("rows", [])
 
-        df = pd.DataFrame(rows, columns=cols if cols else None)
-        df.attrs["sheet_name"] = sheet_name[:31]
+            df = pd.DataFrame(rows, columns=cols if cols else None)
+            df.attrs["sheet_name"] = sheet_name[:31]
 
-        if is_statement:
-            df.attrs["is_statement"] = True
-            df.attrs["metadata"] = metadata
-            df.attrs["bank_name"] = metadata.get("bank_name", "Bank")
+            if is_statement:
+                df.attrs["is_statement"] = True
+                df.attrs["metadata"] = metadata
+                df.attrs["bank_name"] = metadata.get("bank_name", "Bank")
 
-            # Parse records from rows
-            records = []
-            for r in rows:
-                if len(r) >= 5:
-                    records.append({
-                        "date": str(r[0] or ""),
-                        "desc": str(r[1] or ""),
-                        "credit": _amount_to_number(r[2]),
-                        "debit": _amount_to_number(r[3]),
-                        "balance": _amount_to_number(r[4]),
-                        "status": str(r[5] if len(r) > 5 else "✅ Verified")
-                    })
-            df.attrs["records"] = records
+                # Parse records from rows
+                records = []
+                for r in rows:
+                    if len(r) >= 5:
+                        records.append({
+                            "date": str(r[0] or ""),
+                            "desc": str(r[1] or ""),
+                            "credit": _amount_to_number(r[2]),
+                            "debit": _amount_to_number(r[3]),
+                            "balance": _amount_to_number(r[4]),
+                            "status": str(r[5] if len(r) > 5 else "✅ Verified")
+                        })
+                df.attrs["records"] = records
 
-        dataframes.append(df)
+            dataframes.append(df)
 
-    base_name = os.path.splitext(filename)[0]
+        base_name = os.path.splitext(filename)[0]
 
-    if export_format == "csv":
-        # CSV Export
-        si = io.StringIO()
-        cw = csv.writer(si)
-        primary_df = dataframes[0]
-        
-        if is_statement and primary_df.attrs.get("records"):
-            cw.writerow([f"{metadata.get('bank_name', 'Bank')} Account Statement"])
-            cw.writerow(["Account Title:", metadata.get("account_title", "")])
-            cw.writerow(["Account Number:", metadata.get("account_number", "")])
-            cw.writerow(["IBAN:", metadata.get("iban", "")])
-            cw.writerow(["Currency:", metadata.get("currency", "PKR")])
-            cw.writerow([])
-            cw.writerow(["Booking Date", "Description", "Credit", "Debit", "Available Balance", "Validation Status"])
-            for r in primary_df.attrs.get("records", []):
-                cw.writerow([r["date"], r["desc"], r["credit"] or "", r["debit"] or "", r["balance"] or "", r["status"]])
+        if export_format == "csv":
+            # CSV Export
+            si = io.StringIO()
+            cw = csv.writer(si)
+            primary_df = dataframes[0]
+            
+            if is_statement and primary_df.attrs.get("records"):
+                cw.writerow([f"{metadata.get('bank_name', 'Bank')} Account Statement"])
+                cw.writerow(["Account Title:", metadata.get("account_title", "")])
+                cw.writerow(["Account Number:", metadata.get("account_number", "")])
+                cw.writerow(["IBAN:", metadata.get("iban", "")])
+                cw.writerow(["Currency:", metadata.get("currency", "PKR")])
+                cw.writerow([])
+                cw.writerow(["Booking Date", "Description", "Credit", "Debit", "Available Balance", "Validation Status"])
+                for r in primary_df.attrs.get("records", []):
+                    cw.writerow([r["date"], r["desc"], r["credit"] or "", r["debit"] or "", r["balance"] or "", r["status"]])
+            else:
+                if list(primary_df.columns):
+                    cw.writerow(list(primary_df.columns))
+                for row in primary_df.values:
+                    cw.writerow(list(row))
+
+            output = io.BytesIO(si.getvalue().encode('utf-8'))
+            return send_file(
+                output,
+                mimetype="text/csv",
+                as_attachment=True,
+                download_name=f"{base_name}_converted.csv"
+            )
+
         else:
-            if list(primary_df.columns):
-                cw.writerow(list(primary_df.columns))
-            for row in primary_df.values:
-                cw.writerow(list(row))
+            # Excel (.xlsx) Export
+            output = _build_styled_excel_file(dataframes)
+            return send_file(
+                output,
+                mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                as_attachment=True,
+                download_name=f"{base_name}_converted.xlsx"
+            )
 
-        output = io.BytesIO(si.getvalue().encode('utf-8'))
-        return send_file(
-            output,
-            mimetype="text/csv",
-            as_attachment=True,
-            download_name=f"{base_name}_converted.csv"
-        )
-
-    else:
-        # Excel (.xlsx) Export
-        output = _build_styled_excel_file(dataframes)
-        return send_file(
-            output,
-            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            as_attachment=True,
-            download_name=f"{base_name}_converted.xlsx"
-        )
+    except Exception as exc:
+        return jsonify({"error": f"Export failed: {str(exc)}"}), 500
 
 
 @app.route("/api/convert", methods=["POST"])
+@limiter.limit("30 per minute")
 def convert_pdf_to_excel():
     """Direct 1-click conversion."""
     files = request.files.getlist("file")
@@ -1192,6 +1298,12 @@ def convert_pdf_to_excel():
 
     try:
         file_bytes = first_file.read()
+
+        # Verify magic bytes header
+        is_valid, err_msg = _verify_file_magic_bytes(file_bytes, first_file.filename)
+        if not is_valid:
+            return jsonify({"error": err_msg}), 400
+
         file_stream = io.BytesIO(file_bytes)
 
         if fn_lower.endswith(".pdf"):
@@ -1233,8 +1345,14 @@ def convert_pdf_to_excel():
             download_name=download_name,
         )
 
+    except (pdfplumber.pdfminer.pdfparser.PDFSyntaxError, pypdf.errors.PdfReadError) if (pypdf and hasattr(pypdf, 'errors')) else (pdfplumber.pdfminer.pdfparser.PDFSyntaxError,) as exc:
+        return jsonify({"error": f"Invalid or corrupted PDF file: {str(exc)}"}), 400
     except Exception as exc:
+        if "EOF" in str(exc) or "syntax" in str(exc).lower() or "damaged" in str(exc).lower():
+            return jsonify({"error": f"Corrupted or unreadable PDF: {str(exc)}"}), 400
         return jsonify({"error": f"Conversion failed: {str(exc)}"}), 500
+
+
 
 
 if __name__ == "__main__":
