@@ -1,12 +1,37 @@
+# Byte-compiled / optimized / DLL files
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
+*.py[cod]
+*$py.class
+
+# Environment Variables & Virtual Environments
 .env
 .venv/
 env/
 venv/
+ENV/
+
+# Logs and temporary scratch files
 *.log
 scratch/
-test_*.xlsx
 *.tmp
+*.temp
+
+# Sensitive Client Documents & Output Spreadsheets (Block all real data)
+*.pdf
+*.xlsx
+*.xls
+*.csv
+*.docx
+*.doc
+*.png
+*.jpg
+*.jpeg
+*.webp
+*.bmp
+*.tiff
+
+# Allow only synthetic dummy test fixture files in test_files/
+!test_files/*.pdf
+!test_files/*.png
+!test_files/*.txt
+!test_files/*.docx
