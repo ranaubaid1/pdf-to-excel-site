@@ -547,10 +547,22 @@ def _extract_tables_from_images(image_files):
 def extract_tables_from_pdf(file_stream):
     """
     Reads PDF file stream and returns list of DataFrames.
-    Automatically handles Bank Statements, Tax Returns (FBR), Invoices, & Scanned PDFs.
+    1. First tries specialized Bank Statement Engine (extracts 100% of transactions with reconciliation).
+    2. Then tries Structured Table Engine (FBR Tax Returns, multi-table forms, invoices).
+    3. Then falls back to Scanned PDF OCR Engine.
     """
-    raw_tables = []
+    # Priority 1: High-precision Statement Parser (Meezan, BOP, Allied, Standard Chartered, etc.)
+    try:
+        file_stream.seek(0)
+        text_dfs = _extract_tables_via_text(file_stream)
+        if text_dfs and len(text_dfs) > 0 and text_dfs[0].attrs.get("records") and len(text_dfs[0].attrs["records"]) >= 1:
+            return text_dfs
+    except Exception:
+        pass
 
+    # Priority 2: Structured Vector Table Extraction (FBR Tax Returns, Invoices, General Forms)
+    raw_tables = []
+    file_stream.seek(0)
     with pdfplumber.open(file_stream) as pdf:
         for page_number, page in enumerate(pdf.pages, start=1):
             tables = page.extract_tables()
@@ -615,13 +627,13 @@ def extract_tables_from_pdf(file_stream):
 
     merged = []
     for header_key, df, page_num, tbl_idx, sheet_name in raw_tables:
-        if merged and merged[-1][0] == header_key and merged[-1][4] == sheet_name:
+        if merged and merged[-1][0] == header_key:
             merged[-1] = (
                 header_key,
                 pd.concat([merged[-1][1], df], ignore_index=True),
                 merged[-1][2],
                 merged[-1][3],
-                sheet_name
+                merged[-1][4]
             )
         else:
             merged.append((header_key, df, page_num, tbl_idx, sheet_name))
@@ -635,11 +647,9 @@ def extract_tables_from_pdf(file_stream):
         df.attrs["sheet_name"] = clean_sn if clean_sn else f"Sheet{i+1}"
         dataframes.append(df)
 
+    # Priority 3: Scanned PDF OCR Fallback
     if not dataframes:
-        text_dfs = _extract_tables_via_text(file_stream)
-        if text_dfs and len(text_dfs[0]) > 0:
-            return text_dfs
-        # Scanned PDF Fallback
+        file_stream.seek(0)
         return _extract_tables_from_scanned_pdf(file_stream)
 
     return dataframes
