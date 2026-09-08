@@ -516,7 +516,7 @@ def _extract_tables_from_images(image_files):
 def extract_tables_from_pdf(file_stream):
     """
     Reads PDF file stream and returns list of DataFrames.
-    Automatically detects scanned PDFs and falls back to High-DPI OCR.
+    Automatically handles Bank Statements, Tax Returns (FBR), Invoices, & Scanned PDFs.
     """
     raw_tables = []
 
@@ -527,21 +527,34 @@ def extract_tables_from_pdf(file_stream):
                 if not table or len(table) < 1:
                     continue
 
-                raw_header = table[0]
-                raw_rows = table[1:]
+                # Smart header detection for tables with section titles merged in row 0
+                non_empty_h0 = [c for c in table[0] if c and str(c).strip()]
+                custom_sheet_title = None
 
-                cleaned_header, valid_indices = _clean_header(raw_header)
+                if len(non_empty_h0) == 1 and len(table) > 1:
+                    custom_sheet_title = str(non_empty_h0[0]).replace("\n", " ").strip()
+                    header_row = table[1]
+                    data_rows = table[2:]
+                else:
+                    header_row = table[0]
+                    data_rows = table[1:]
+
+                cleaned_header, valid_indices = _clean_header(header_row)
                 if not cleaned_header:
-                    continue
+                    num_cols = len(table[0])
+                    cleaned_header = [f"Col_{i+1}" for i in range(num_cols)]
+                    valid_indices = list(range(num_cols))
+                    data_rows = table
 
                 cleaned_rows = []
-                for row in raw_rows:
+                for row in data_rows:
                     if _is_empty_row(row):
                         continue
                     cleaned_row = []
                     for idx in valid_indices:
                         if idx < len(row):
-                            cleaned_row.append(row[idx])
+                            val = str(row[idx] or "").replace("\n", " ").strip()
+                            cleaned_row.append(val)
                         else:
                             cleaned_row.append("")
                     if _is_empty_row(cleaned_row):
@@ -551,37 +564,44 @@ def extract_tables_from_pdf(file_stream):
                 if not cleaned_rows:
                     continue
 
-                df = pd.DataFrame(cleaned_rows, columns=cleaned_header)
+                df = pd.DataFrame(cleaned_rows, columns=cleaned_header[:len(cleaned_rows[0])])
                 df = _clean_dataframe(df)
 
                 if df.empty:
                     continue
 
+                raw_sheet_title = custom_sheet_title if custom_sheet_title else f"Page{page_number}_Table{table_index}"
+                sheet_name = re.sub(r'[\\/*?:\[\]]', '_', raw_sheet_title).strip()[:31]
+                df.attrs["sheet_name"] = sheet_name
+
                 raw_tables.append((
                     tuple(cleaned_header),
                     df,
                     page_number,
-                    table_index
+                    table_index,
+                    sheet_name
                 ))
 
     merged = []
-    for header_key, df, page_num, tbl_idx in raw_tables:
-        if merged and merged[-1][0] == header_key:
+    for header_key, df, page_num, tbl_idx, sheet_name in raw_tables:
+        if merged and merged[-1][0] == header_key and merged[-1][4] == sheet_name:
             merged[-1] = (
                 header_key,
                 pd.concat([merged[-1][1], df], ignore_index=True),
                 merged[-1][2],
                 merged[-1][3],
+                sheet_name
             )
         else:
-            merged.append((header_key, df, page_num, tbl_idx))
+            merged.append((header_key, df, page_num, tbl_idx, sheet_name))
 
     dataframes = []
-    for i, (header_key, df, page_num, tbl_idx) in enumerate(merged):
+    for i, (header_key, df, page_num, tbl_idx, sheet_name) in enumerate(merged):
         df = _clean_dataframe(df)
         if df.empty:
             continue
-        df.attrs["sheet_name"] = f"Page{page_num}_Table{tbl_idx}"
+        clean_sn = re.sub(r'[\\/*?:\[\]]', '_', sheet_name).strip()[:31]
+        df.attrs["sheet_name"] = clean_sn if clean_sn else f"Sheet{i+1}"
         dataframes.append(df)
 
     if not dataframes:
@@ -590,15 +610,6 @@ def extract_tables_from_pdf(file_stream):
             return text_dfs
         # Scanned PDF Fallback
         return _extract_tables_from_scanned_pdf(file_stream)
-
-    if dataframes:
-        main_df = max(dataframes, key=lambda d: len(d))
-        missing_ratio = _calculate_missing_ratio(main_df)
-        if missing_ratio > 0.5:
-            text_dfs = _extract_tables_via_text(file_stream)
-            if text_dfs and len(text_dfs[0]) > 0:
-                return text_dfs
-            return _extract_tables_from_scanned_pdf(file_stream)
 
     return dataframes
 
