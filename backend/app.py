@@ -440,8 +440,7 @@ def _extract_tables_via_text(file_stream):
 def _extract_tables_from_scanned_pdf(file_stream):
     """
     Scanned PDF Fallback Engine:
-    Renders PDF pages to high-DPI (300 DPI) images using PyMuPDF (fitz)
-    and passes them to the OpenCV + Tesseract OCR engine.
+    Renders PDF pages to 180 DPI (optimized speed & crisp OCR accuracy).
     """
     if not fitz:
         return []
@@ -452,7 +451,7 @@ def _extract_tables_from_scanned_pdf(file_stream):
 
     image_files = []
     for p_idx, page in enumerate(doc, start=1):
-        pix = page.get_pixmap(dpi=300)
+        pix = page.get_pixmap(dpi=180)
         img_bytes = pix.tobytes("png")
         image_files.append(NamedBytesIO(img_bytes, filename=f"page_{p_idx:03d}.png"))
 
@@ -466,7 +465,9 @@ def _extract_tables_from_images(image_files):
     """
     Extract tables and text from one or multiple uploaded image files using
     OpenCV unsharp-mask sharpening, OTSU thresholding, and Tesseract OCR.
+    High-speed multi-threaded optimization.
     """
+    cv2.setNumThreads(4)
     combined_lines = []
     first_ocr_text = ""
     last_ocr_text = ""
@@ -483,9 +484,11 @@ def _extract_tables_from_images(image_files):
 
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         h, w = gray.shape[:2]
-        if w < 1600:
-            scale = 1600 / float(w)
-            gray = cv2.resize(gray, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_CUBIC)
+        target_w = 1200
+        if w != target_w:
+            scale = target_w / float(w)
+            interp = cv2.INTER_AREA if w > target_w else cv2.INTER_LINEAR
+            gray = cv2.resize(gray, (target_w, int(h * scale)), interpolation=interp)
 
         gaussian = cv2.GaussianBlur(gray, (0, 0), 3)
         sharpened = cv2.addWeighted(gray, 1.5, gaussian, -0.5, 0)
