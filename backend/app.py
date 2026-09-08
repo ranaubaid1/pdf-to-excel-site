@@ -492,7 +492,7 @@ def _parse_text_lines_to_df(lines, p1_text="", p_last_text=""):
         "statement_period": statement_period,
         "opening_balance": opening_balance,
         "closing_balance": closing_balance,
-        "review_count": review_needed_count,
+        "review_count": 0,
         "total_records": len(records),
         "total_credit": total_credit,
         "total_debit": total_debit
@@ -816,23 +816,19 @@ def extract_tables_from_pdf(file_stream):
 def _build_styled_excel_file(dataframes):
     """
     Builds a beautifully styled openpyxl Excel file with:
-    - Executive Header & Reconciliation Dashboard
-    - Soft yellow highlight for rows flagged as ⚠️ Review Required
-    - Auto Column Widths, Frozen Headers & Gridlines
+    - Executive Header & Metadata Summary
+    - Clean 5-column financial statement formatting
+    - Auto Column Widths, Calculated Totals & Gridlines
     """
     wb = openpyxl.Workbook()
     wb.remove(wb.active)
 
     navy_fill = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
-    yellow_fill = PatternFill(start_color="FFF2CC", end_color="FFF2CC", fill_type="solid")
-    green_fill = PatternFill(start_color="E2EFDA", end_color="E2EFDA", fill_type="solid")
 
     white_bold_font = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
     bold_font = Font(name="Calibri", size=11, bold=True)
     regular_font = Font(name="Calibri", size=11)
     title_font = Font(name="Calibri", size=14, bold=True, color="1F4E78")
-    warn_font = Font(name="Calibri", size=11, bold=True, color="7F6000")
-    pass_font = Font(name="Calibri", size=11, bold=True, color="375623")
 
     total_border = Border(top=Side(style='thin'), bottom=Side(style='double'))
 
@@ -946,18 +942,24 @@ def _build_styled_excel_file(dataframes):
             lbl_tot.font = bold_font
             lbl_tot.alignment = Alignment(horizontal="right")
 
-
-            c_tot_cred = ws.cell(row=tot_row, column=3, value=f"=SUM(C{first_data_row}:C{last_data_row})")
+            c_tot_cred = ws.cell(row=tot_row, column=3)
             c_tot_cred.font = bold_font
             c_tot_cred.number_format = "#,##0.00"
             c_tot_cred.border = total_border
             c_tot_cred.alignment = Alignment(horizontal="right")
 
-            c_tot_deb = ws.cell(row=tot_row, column=4, value=f"=SUM(D{first_data_row}:D{last_data_row})")
+            c_tot_deb = ws.cell(row=tot_row, column=4)
             c_tot_deb.font = bold_font
             c_tot_deb.number_format = "#,##0.00"
             c_tot_deb.border = total_border
             c_tot_deb.alignment = Alignment(horizontal="right")
+
+            if last_data_row >= first_data_row:
+                c_tot_cred.value = f"=SUM(C{first_data_row}:C{last_data_row})"
+                c_tot_deb.value = f"=SUM(D{first_data_row}:D{last_data_row})"
+            else:
+                c_tot_cred.value = 0.00
+                c_tot_deb.value = 0.00
 
         else:
             write_header = df.attrs.get("has_header", True)
@@ -998,7 +1000,9 @@ def _build_styled_excel_file(dataframes):
                     val_str = f"{cell.value:,.2f}"
                 max_len = max(max_len, len(val_str))
 
-            if col_letter == 'B':
+            if col_letter == 'A' and is_statement:
+                ws.column_dimensions[col_letter].width = 16
+            elif col_letter == 'B':
                 ws.column_dimensions[col_letter].width = min(max(max_len + 3, 30), 60)
             else:
                 ws.column_dimensions[col_letter].width = max(max_len + 4, 14)
