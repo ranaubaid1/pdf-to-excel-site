@@ -111,10 +111,12 @@ def _parse_text_lines_to_df(lines, p1_text="", p_last_text=""):
     Core text line parser shared by PDF text extraction, Scanned PDF OCR, and Image OCR.
     Extracts metadata, dates, descriptions, credit, debit, available balance,
     and performs financial arithmetic reconciliation validation.
+    Supports Meezan, BOP, Allied, and Standard Chartered Bank Statements.
     """
-    date_pattern = re.compile(r'^(?:\d{2}[/\-\s](?:\d{2}|\w{3})[/\-\s]\d{4}|\d{4}[/\-\s]\d{4})\b')
+    date_pattern = re.compile(r'^(?:\d{1,2}[/\-\s]?(?:\d{2}|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|Ju1|suled|aug|jul)[/\-\s]?(?:\d{2}|\d{4}))\b', re.I)
+    sc_ref_pattern = re.compile(r'PK-\d{3}-(\d{2})(\d{2})(\d{2})-')
     amount_pattern = re.compile(r'(?:[+-]\s*PKR\s*[\d,.]+|PKR\s*[\d,.]+|(?<=\s)[\d,]+\.\d{2}(?=\s|$)|(?<=\s)[\d,]+\.\d{1,2}(?=\s|$))')
-    footer_pattern = re.compile(r'^\d+\s+\d{2}\s+\w{3}\s+\d{4},\s+\d{2}:\d{2}$|^\d+\s*\|\s*Page$|^\*\*\*\*\*\*End of statement\*\*\*\*\*\*')
+    footer_pattern = re.compile(r'^\d+\s+\d{2}\s+\w{3}\s+\d{4},\s+\d{2}:\d{2}$|^\d+\s*\|\s*Page$|^\*\*\*\*\*\*End of statement\*\*\*\*\*\*|The items and balance on this statement|Please note that this is a system generated')
 
     all_entries = []
     total_debit = 0.0
@@ -123,7 +125,7 @@ def _parse_text_lines_to_df(lines, p1_text="", p_last_text=""):
 
     for line in lines:
         line = line.strip()
-        if not line or footer_pattern.match(line) or 'This is a system generated report' in line or 'STATEMENT PERIOD' in line or 'Balance B/F' in line:
+        if not line or footer_pattern.search(line) or 'This is a system generated report' in line or 'STATEMENT PERIOD' in line or 'Balance B/F' in line:
             continue
 
         # Clean OCR noise ($/S/s before comma or amount)
@@ -136,24 +138,35 @@ def _parse_text_lines_to_df(lines, p1_text="", p_last_text=""):
         # Normalize missing slash in OCR dates (e.g. 0201/2026 -> 02/01/2026)
         norm_line = re.sub(r'^(\d{2})(\d{2})/(\d{4})', r'\1/\2/\3', line)
 
-        if date_pattern.match(norm_line):
+        m_sc_ref = sc_ref_pattern.search(line)
+        m_date = date_pattern.match(norm_line) if not ('From Date' in line or 'To Date' in line or 'Statement Date' in line) else None
+
+        if m_sc_ref or m_date:
             if current_entry:
                 all_entries.append(current_entry)
 
-            m = re.match(r'^(\d{2}[/\-\s](?:\d{2}|\w{3})[/\-\s]\d{4})(?:\s+(\d{2}[/\-\s](?:\d{2}|\w{3})[/\-\s]\d{4}))?\s+(.*)', norm_line)
-            if m:
-                tx_date = m.group(1)
-                rest = m.group(3)
+            if m_sc_ref:
+                yy, mm, dd = m_sc_ref.groups()
+                tx_date = f"{dd}/{mm}/20{yy}"
+                rest = line
+            else:
+                m = re.match(r'^([O0sS]?\d{1,2}[/\-\s]?(?:\d{2}|\w{3})[/\-\s]?(?:\d{2}|\d{4}))\s+(.*)', norm_line)
+                if m:
+                    tx_date = m.group(1)
+                    rest = m.group(2)
+                else:
+                    tx_date = norm_line[:10]
+                    rest = norm_line[10:]
 
-                amounts = amount_pattern.findall(rest)
-                desc = amount_pattern.sub('', rest).strip()
-                desc = re.sub(r'\s{2,}', ' ', desc).strip()
+            amounts = amount_pattern.findall(rest)
+            desc = amount_pattern.sub('', rest).strip()
+            desc = re.sub(r'\s{2,}', ' ', desc).strip()
 
-                current_entry = {
-                    'date': tx_date,
-                    'desc': desc,
-                    'amounts': amounts,
-                }
+            current_entry = {
+                'date': tx_date,
+                'desc': desc,
+                'amounts': amounts,
+            }
         elif current_entry:
             if re.match(r'^\d+\s+\d{2}\s+\w{3}\s+\d{4}', line):
                 continue
@@ -170,7 +183,7 @@ def _parse_text_lines_to_df(lines, p1_text="", p_last_text=""):
                 "Transaction Value Instrument Cr. Remaining",
                 "Nature of Transaction Dr. Amount",
                 "Date Date Number Amount Balance",
-            ) and "of this statement, otherwise" not in desc_part:
+            ) and "of this statement, otherwise" not in desc_part and not any(kw in desc_part for kw in ['Statement No:', 'Enquiry Tel:', 'Postal/Zip Code', 'Currency:']):
                 current_entry['desc'] += ' ' + desc_part
             current_entry['amounts'].extend(amounts_in_line)
 
@@ -213,7 +226,6 @@ def _parse_text_lines_to_df(lines, p1_text="", p_last_text=""):
     for i in range(len(lines_p1)):
         line = lines_p1[i]
 
-        # Multi-column Opening/Closing Balance on adjacent lines
         if 'Opening Balance' in line and 'Closing Balance' in line:
             if i + 1 < len(lines_p1):
                 val_line = lines_p1[i + 1]
@@ -289,7 +301,9 @@ def _parse_text_lines_to_df(lines, p1_text="", p_last_text=""):
                     closing_balance = _amount_to_number(m_cb[-1])
 
     full_p1_text = ' '.join(lines_p1)
-    if "MEZN" in (iban or "") or "Meezan" in full_p1_text:
+    if "Standard Chartered" in full_p1_text or "chartered" in full_p1_text.lower() or "SCB" in full_p1_text:
+        bank_name = "Standard Chartered Bank"
+    elif "MEZN" in (iban or "") or "Meezan" in full_p1_text:
         bank_name = "Meezan Bank"
     elif "BPUN" in (iban or "").upper() or "PUNJAB" in full_p1_text.upper() or "BOP" in full_p1_text.upper():
         bank_name = "The Bank of Punjab"
@@ -440,20 +454,37 @@ def _extract_tables_via_text(file_stream):
 def _extract_tables_from_scanned_pdf(file_stream):
     """
     Scanned PDF Fallback Engine:
-    Renders PDF pages to 180 DPI (optimized speed & crisp OCR accuracy).
+    Renders PDF pages to 180 DPI images using PyMuPDF (fitz) or pdfplumber,
+    and passes them to the OpenCV + Tesseract OCR engine.
     """
-    if not fitz:
-        return []
+    image_files = []
 
     file_stream.seek(0)
     file_bytes = file_stream.read()
-    doc = fitz.open(stream=file_bytes, filetype="pdf")
 
-    image_files = []
-    for p_idx, page in enumerate(doc, start=1):
-        pix = page.get_pixmap(dpi=180)
-        img_bytes = pix.tobytes("png")
-        image_files.append(NamedBytesIO(img_bytes, filename=f"page_{p_idx:03d}.png"))
+    # Strategy 1: PyMuPDF (High Performance)
+    if fitz:
+        try:
+            doc = fitz.open(stream=file_bytes, filetype="pdf")
+            for p_idx, page in enumerate(doc, start=1):
+                pix = page.get_pixmap(dpi=180)
+                img_bytes = pix.tobytes("png")
+                image_files.append(NamedBytesIO(img_bytes, filename=f"page_{p_idx:03d}.png"))
+        except Exception:
+            image_files = []
+
+    # Strategy 2: pdfplumber fallback if fitz failed or not installed
+    if not image_files:
+        try:
+            file_stream.seek(0)
+            with pdfplumber.open(file_stream) as pdf:
+                for p_idx, page in enumerate(pdf.pages, start=1):
+                    img = page.to_image(resolution=180).original
+                    buf = io.BytesIO()
+                    img.save(buf, format="PNG")
+                    image_files.append(NamedBytesIO(buf.getvalue(), filename=f"page_{p_idx:03d}.png"))
+        except Exception:
+            pass
 
     if not image_files:
         return []
