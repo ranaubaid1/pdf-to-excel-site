@@ -816,21 +816,48 @@ def extract_tables_from_pdf(file_stream):
 def _build_styled_excel_file(dataframes):
     """
     Builds a beautifully styled openpyxl Excel file with:
-    - Executive Header & Metadata Summary
-    - Clean 5-column financial statement formatting
-    - Auto Column Widths, Calculated Totals & Gridlines
+    - Executive Header & Metadata Dashboard
+    - Distinct Corporate Header Styling & Row Padding
+    - Subtle Zebra Striping & Soft Grid Borders
+    - Accurate Data-Driven Column Width Auto-Adjustment
+    - Calculated Total Formula Row & Gridlines
     """
     wb = openpyxl.Workbook()
     wb.remove(wb.active)
 
-    navy_fill = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
+    # Theme Colors: Midnight Deep Slate / Navy
+    header_fill = PatternFill(start_color="1E3A8A", end_color="1E3A8A", fill_type="solid")
+    even_row_fill = PatternFill(start_color="FFFFFF", end_color="FFFFFF", fill_type="solid")
+    odd_row_fill = PatternFill(start_color="F8FAFC", end_color="F8FAFC", fill_type="solid")
+    total_fill = PatternFill(start_color="F1F5F9", end_color="F1F5F9", fill_type="solid")
 
-    white_bold_font = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
-    bold_font = Font(name="Calibri", size=11, bold=True)
-    regular_font = Font(name="Calibri", size=11)
-    title_font = Font(name="Calibri", size=14, bold=True, color="1F4E78")
+    # Typography
+    header_font = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
+    bold_font = Font(name="Calibri", size=11, bold=True, color="0F172A")
+    meta_lbl_font = Font(name="Calibri", size=10, bold=True, color="475569")
+    meta_val_font = Font(name="Calibri", size=10, color="0F172A")
+    regular_font = Font(name="Calibri", size=11, color="1E293B")
+    title_font = Font(name="Calibri", size=15, bold=True, color="1E3A8A")
 
-    total_border = Border(top=Side(style='thin'), bottom=Side(style='double'))
+    # Borders
+    cell_border = Border(
+        left=Side(style='thin', color='E2E8F0'),
+        right=Side(style='thin', color='E2E8F0'),
+        top=Side(style='thin', color='E2E8F0'),
+        bottom=Side(style='thin', color='E2E8F0')
+    )
+    header_border = Border(
+        left=Side(style='thin', color='1E293B'),
+        right=Side(style='thin', color='1E293B'),
+        top=Side(style='medium', color='1E3A8A'),
+        bottom=Side(style='medium', color='1E3A8A')
+    )
+    total_border = Border(
+        top=Side(style='thin', color='1E3A8A'),
+        bottom=Side(style='double', color='1E3A8A'),
+        left=Side(style='thin', color='E2E8F0'),
+        right=Side(style='thin', color='E2E8F0')
+    )
 
     for df in dataframes:
         sheet_name = df.attrs.get("sheet_name", "Sheet1")[:31]
@@ -843,7 +870,11 @@ def _build_styled_excel_file(dataframes):
             meta = df.attrs.get("metadata", {})
             bank_name = df.attrs.get("bank_name", "Bank")
 
-            ws.cell(row=1, column=1, value=f"{bank_name} Account Statement").font = title_font
+            # Title Row
+            ws.row_dimensions[1].height = 32
+            t_cell = ws.cell(row=1, column=1, value=f"{bank_name} Account Statement")
+            t_cell.font = title_font
+            t_cell.alignment = Alignment(vertical="center")
 
             meta_items = [
                 ("Account Title:", meta.get("account_title", "")),
@@ -857,31 +888,38 @@ def _build_styled_excel_file(dataframes):
 
             curr_row = 3
             for label, val in meta_items:
+                ws.row_dimensions[curr_row].height = 19
                 lbl_cell = ws.cell(row=curr_row, column=1, value=label)
-                lbl_cell.font = bold_font
+                lbl_cell.font = meta_lbl_font
+                lbl_cell.alignment = Alignment(vertical="center")
+
                 val_cell = ws.cell(row=curr_row, column=2)
+                val_cell.font = meta_val_font
 
                 if "Balance" in label and val is not None and str(val) != "":
                     try:
                         val_cell.value = float(val)
                         val_cell.number_format = "#,##0.00"
-                        val_cell.alignment = Alignment(horizontal="right")
+                        val_cell.alignment = Alignment(horizontal="right", vertical="center")
                     except ValueError:
                         val_cell.value = str(val)
+                        val_cell.alignment = Alignment(horizontal="left", vertical="center")
                 else:
                     val_cell.value = str(val) if val is not None else ""
                     val_cell.number_format = "@"
-                    val_cell.alignment = Alignment(horizontal="left")
-                    val_cell.font = regular_font
+                    val_cell.alignment = Alignment(horizontal="left", vertical="center")
                 curr_row += 1
 
             curr_row = 11
+            ws.row_dimensions[curr_row].height = 28  # Elegant header height
 
+            # Distinct Table Headers
             headers = ["Booking Date", "Description", "Credit", "Debit", "Available Balance"]
             for col_idx, h_text in enumerate(headers, 1):
                 c = ws.cell(row=curr_row, column=col_idx, value=h_text)
-                c.fill = navy_fill
-                c.font = white_bold_font
+                c.fill = header_fill
+                c.font = header_font
+                c.border = header_border
                 if h_text in ["Credit", "Debit", "Available Balance"]:
                     c.alignment = Alignment(horizontal="right", vertical="center")
                 elif h_text in ["Booking Date"]:
@@ -893,15 +931,25 @@ def _build_styled_excel_file(dataframes):
             records = df.attrs.get("records", [])
             row_idx = first_data_row
 
-            for r in records:
+            for r_i, r in enumerate(records):
+                ws.row_dimensions[row_idx].height = 21  # Spacious data rows
+                row_fill = even_row_fill if (r_i % 2 == 0) else odd_row_fill
+
+                # Date
                 c_date = ws.cell(row=row_idx, column=1, value=r.get("date", ""))
-                c_date.alignment = Alignment(horizontal="center")
+                c_date.alignment = Alignment(horizontal="center", vertical="center")
                 c_date.font = regular_font
+                c_date.fill = row_fill
+                c_date.border = cell_border
 
+                # Description
                 c_desc = ws.cell(row=row_idx, column=2, value=r.get("desc", ""))
-                c_desc.alignment = Alignment(horizontal="left", wrap_text=True)
+                c_desc.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
                 c_desc.font = regular_font
+                c_desc.fill = row_fill
+                c_desc.border = cell_border
 
+                # Credit
                 c_cred = ws.cell(row=row_idx, column=3)
                 if r.get("credit") is not None:
                     try:
@@ -909,9 +957,12 @@ def _build_styled_excel_file(dataframes):
                         c_cred.number_format = "#,##0.00"
                     except ValueError:
                         c_cred.value = str(r["credit"])
-                c_cred.alignment = Alignment(horizontal="right")
+                c_cred.alignment = Alignment(horizontal="right", vertical="center")
                 c_cred.font = regular_font
+                c_cred.fill = row_fill
+                c_cred.border = cell_border
 
+                # Debit
                 c_deb = ws.cell(row=row_idx, column=4)
                 if r.get("debit") is not None:
                     try:
@@ -919,9 +970,12 @@ def _build_styled_excel_file(dataframes):
                         c_deb.number_format = "#,##0.00"
                     except ValueError:
                         c_deb.value = str(r["debit"])
-                c_deb.alignment = Alignment(horizontal="right")
+                c_deb.alignment = Alignment(horizontal="right", vertical="center")
                 c_deb.font = regular_font
+                c_deb.fill = row_fill
+                c_deb.border = cell_border
 
+                # Balance
                 c_bal = ws.cell(row=row_idx, column=5)
                 if r.get("balance") is not None:
                     try:
@@ -929,30 +983,41 @@ def _build_styled_excel_file(dataframes):
                         c_bal.number_format = "#,##0.00"
                     except ValueError:
                         c_bal.value = str(r["balance"])
-                c_bal.alignment = Alignment(horizontal="right")
+                c_bal.alignment = Alignment(horizontal="right", vertical="center")
                 c_bal.font = regular_font
+                c_bal.fill = row_fill
+                c_bal.border = cell_border
 
                 row_idx += 1
 
             last_data_row = row_idx - 1
 
-            # Total Row Formulas
+            # Total Summary Row
             tot_row = row_idx + 1
+            ws.row_dimensions[tot_row].height = 24
+
+            ws.cell(row=tot_row, column=1).border = total_border
+            ws.cell(row=tot_row, column=1).fill = total_fill
+
             lbl_tot = ws.cell(row=tot_row, column=2, value="Total")
             lbl_tot.font = bold_font
-            lbl_tot.alignment = Alignment(horizontal="right")
+            lbl_tot.alignment = Alignment(horizontal="right", vertical="center")
+            lbl_tot.fill = total_fill
+            lbl_tot.border = total_border
 
             c_tot_cred = ws.cell(row=tot_row, column=3)
             c_tot_cred.font = bold_font
             c_tot_cred.number_format = "#,##0.00"
+            c_tot_cred.fill = total_fill
             c_tot_cred.border = total_border
-            c_tot_cred.alignment = Alignment(horizontal="right")
+            c_tot_cred.alignment = Alignment(horizontal="right", vertical="center")
 
             c_tot_deb = ws.cell(row=tot_row, column=4)
             c_tot_deb.font = bold_font
             c_tot_deb.number_format = "#,##0.00"
+            c_tot_deb.fill = total_fill
             c_tot_deb.border = total_border
-            c_tot_deb.alignment = Alignment(horizontal="right")
+            c_tot_deb.alignment = Alignment(horizontal="right", vertical="center")
 
             if last_data_row >= first_data_row:
                 c_tot_cred.value = f"=SUM(C{first_data_row}:C{last_data_row})"
@@ -961,20 +1026,58 @@ def _build_styled_excel_file(dataframes):
                 c_tot_cred.value = 0.00
                 c_tot_deb.value = 0.00
 
+            ws.cell(row=tot_row, column=5).border = total_border
+            ws.cell(row=tot_row, column=5).fill = total_fill
+
+            # Precise Data-Driven Column Width Auto-Adjustment
+            date_lens = [len(str(r.get("date") or "")) for r in records] + [len("Booking Date")]
+            max_d_len = max(date_lens) if date_lens else 12
+            ws.column_dimensions['A'].width = max(max_d_len + 4, 16)
+
+            desc_lens = [len(str(r.get("desc") or "")) for r in records] + [len("Description")]
+            max_desc_len = max(desc_lens) if desc_lens else 20
+            ws.column_dimensions['B'].width = min(max(max_desc_len + 4, 32), 65)
+
+            cred_strs = [f"{float(r['credit']):,.2f}" for r in records if r.get("credit") is not None]
+            cred_lens = [len(s) for s in cred_strs] + [len("Credit")]
+            max_c_len = max(cred_lens) if cred_lens else 10
+            ws.column_dimensions['C'].width = max(max_c_len + 5, 16)
+
+            deb_strs = [f"{float(r['debit']):,.2f}" for r in records if r.get("debit") is not None]
+            deb_lens = [len(s) for s in deb_strs] + [len("Debit")]
+            max_deb_len = max(deb_lens) if deb_lens else 10
+            ws.column_dimensions['D'].width = max(max_deb_len + 5, 16)
+
+            bal_strs = [f"{float(r['balance']):,.2f}" for r in records if r.get("balance") is not None]
+            bal_lens = [len(s) for s in bal_strs] + [len("Available Balance")]
+            max_bal_len = max(bal_lens) if bal_lens else 17
+            ws.column_dimensions['E'].width = max(max_bal_len + 5, 20)
+
         else:
+            # Generic non-statement table formatting
             write_header = df.attrs.get("has_header", True)
             start_row = 1
             if write_header and list(df.columns):
+                ws.row_dimensions[1].height = 26
                 for c_idx, col_name in enumerate(df.columns, 1):
                     c = ws.cell(row=1, column=c_idx, value=str(col_name))
-                    c.fill = navy_fill
-                    c.font = white_bold_font
+                    c.fill = header_fill
+                    c.font = header_font
+                    c.border = header_border
+                    c.alignment = Alignment(horizontal="center", vertical="center")
                 start_row = 2
 
             for r_offset, row in enumerate(df.values):
                 r_idx = start_row + r_offset
+                ws.row_dimensions[r_idx].height = 20
+                row_fill = even_row_fill if (r_offset % 2 == 0) else odd_row_fill
+
                 for c_idx, val in enumerate(row, 1):
                     cell = ws.cell(row=r_idx, column=c_idx)
+                    cell.border = cell_border
+                    cell.fill = row_fill
+                    cell.font = regular_font
+
                     if pd.isna(val) or val is None or str(val).strip() == "":
                         cell.value = ""
                     else:
@@ -984,28 +1087,23 @@ def _build_styled_excel_file(dataframes):
                                 fval = float(val_str.replace(',', ''))
                                 cell.value = fval
                                 cell.number_format = "#,##0.00"
-                                cell.alignment = Alignment(horizontal="right")
+                                cell.alignment = Alignment(horizontal="right", vertical="center")
                             else:
                                 cell.value = val_str
+                                cell.alignment = Alignment(horizontal="left", vertical="center")
                         except ValueError:
                             cell.value = val_str
+                            cell.alignment = Alignment(horizontal="left", vertical="center")
 
-        ws.views.sheetView[0].showGridLines = True
-        for col in ws.columns:
-            max_len = 0
-            col_letter = get_column_letter(col[0].column)
-            for cell in col:
-                val_str = str(cell.value or "")
-                if cell.number_format == "#,##0.00" and isinstance(cell.value, (int, float)):
-                    val_str = f"{cell.value:,.2f}"
-                max_len = max(max_len, len(val_str))
-
-            if col_letter == 'A' and is_statement:
-                ws.column_dimensions[col_letter].width = 16
-            elif col_letter == 'B':
-                ws.column_dimensions[col_letter].width = min(max(max_len + 3, 30), 60)
-            else:
-                ws.column_dimensions[col_letter].width = max(max_len + 4, 14)
+            for col in ws.columns:
+                max_len = 0
+                col_letter = get_column_letter(col[0].column)
+                for cell in col:
+                    val_str = str(cell.value or "")
+                    if cell.number_format == "#,##0.00" and isinstance(cell.value, (int, float)):
+                        val_str = f"{cell.value:,.2f}"
+                    max_len = max(max_len, len(val_str))
+                ws.column_dimensions[col_letter].width = min(max(max_len + 4, 14), 65)
 
     output = io.BytesIO()
     wb.save(output)

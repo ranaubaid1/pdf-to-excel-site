@@ -534,14 +534,26 @@
   table.data-table th {
     position: sticky;
     top: 0;
-    background: var(--surface-subtle);
-    color: var(--text-main);
+    background: #1E293B;
+    color: #FFFFFF;
+    font-size: 11.5px;
     font-weight: 700;
-    padding: 12px 14px;
-    border-bottom: 2px solid var(--border-strong);
-    border-right: 1px solid var(--border);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 13px 14px;
+    border-bottom: 3px solid #2563EB;
+    border-right: 1px solid rgba(255, 255, 255, 0.12);
     white-space: nowrap;
     z-index: 10;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  }
+
+  table.data-table th.th-num {
+    text-align: right;
+  }
+
+  table.data-table th.th-center {
+    text-align: center;
   }
 
   table.data-table td {
@@ -550,10 +562,15 @@
     border-right: 1px solid var(--border);
     color: var(--text-main);
     background: #FFFFFF;
+    transition: background-color 0.15s ease;
+  }
+
+  table.data-table tr:nth-child(even) td {
+    background: #F8FAFC;
   }
 
   table.data-table tr:hover td {
-    background: #F8FAFC;
+    background: #EFF6FF !important;
   }
 
   table.data-table td.cell-num {
@@ -572,7 +589,7 @@
   }
 
   table.data-table td[contenteditable="true"]:focus {
-    background: var(--primary-light);
+    background: #FFFFFF !important;
     box-shadow: inset 0 0 0 2px var(--primary);
   }
 
@@ -1120,7 +1137,19 @@
     // Render Table Header
     tableHead.innerHTML = "";
     const trHead = document.createElement('tr');
-    trHead.innerHTML = `<th>#</th>` + sheet.columns.map(c => `<th>${c}</th>`).join('') + `<th>Action</th>`;
+    let thCells = `<th class="th-center" style="width:50px;">#</th>`;
+    sheet.columns.forEach(c => {
+      const cLower = String(c).toLowerCase();
+      let alignClass = "";
+      if (cLower.includes("credit") || cLower.includes("debit") || cLower.includes("balance") || cLower.includes("amount") || cLower.includes("price") || cLower.includes("salary")) {
+        alignClass = "th-num";
+      } else if (cLower.includes("date") || cLower.includes("status")) {
+        alignClass = "th-center";
+      }
+      thCells += `<th class="${alignClass}">${c}</th>`;
+    });
+    thCells += `<th class="th-center" style="width:70px;">Action</th>`;
+    trHead.innerHTML = thCells;
     tableHead.appendChild(trHead);
 
     // Render Rows
